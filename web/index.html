@@ -149,7 +149,7 @@
               <label>Wave implementation<select name="wave-backend"><option value="reference">Built-in reference FDTD</option><option value="pffdtd">PFFDTD prepared job</option></select></label>
               <div class="pffdtd-fields" hidden>
                 <label>Prepared job directory<input name="pffdtd-data-directory" type="text" placeholder="/path/to/job"></label>
-                <label>Python executable<input name="pffdtd-python" type="text" placeholder="Auto-detect Miniforge va-pffdtd"></label>
+                <label>Python executable<input name="pffdtd-python" type="text" placeholder="VA_PFFDTD_PYTHON or python3 on PATH"></label>
                 <label>Execution<select name="pffdtd-execution"><option value="prepared">Use existing sim_outs.h5</option><option value="python">Run Python CPU</option><option value="native-double">Native CPU double</option><option value="native-single">Native CPU single</option></select></label>
                 <label class="check"><input name="air-absorption" type="checkbox"> Apply modal air absorption</label>
               </div>

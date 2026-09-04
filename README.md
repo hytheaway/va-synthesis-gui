@@ -43,28 +43,19 @@ git submodule update --init --recursive
 This fetches BRTLibrary, its Eigen and rapidobj dependencies, and PFFDTD at the
 commits pinned by `va-synthesis`.
 
-Provision PFFDTD with the existing Miniforge installation:
+PFFDTD needs a Python interpreter that can import its numerical packages. The
+pinned fork lists those packages under
+`submodules/va-synthesis/submodules/pffdtd/python/`. Create that environment
+with any tool you prefer, then point this app at the resulting interpreter:
 
 ```sh
-/Users/gtreanor/miniforge3/bin/conda env create \
-  -n va-pffdtd \
-  -f submodules/va-synthesis/submodules/pffdtd/python/conda_pffdtd.yml
-```
-
-If `va-pffdtd` already exists, update it instead:
-
-```sh
-/Users/gtreanor/miniforge3/bin/conda env update \
-  -n va-pffdtd \
-  -f submodules/va-synthesis/submodules/pffdtd/python/conda_pffdtd.yml
-```
-
-Validate the numerical runtime:
-
-```sh
-/Users/gtreanor/miniforge3/bin/conda run -n va-pffdtd python -c \
+export VA_PFFDTD_PYTHON=/absolute/path/to/python
+"$VA_PFFDTD_PYTHON" -c \
   'import h5py, numba, numpy, resampy, scipy; import sys; print(sys.executable)'
 ```
+
+If `VA_PFFDTD_PYTHON` is unset, the app uses `python3` (then `python`) from
+`PATH`. You can also set the interpreter in the Advanced PFFDTD fields.
 
 Then rebuild so CMake enables both adapters:
 
@@ -73,21 +64,7 @@ Then rebuild so CMake enables both adapters:
 grep 'VA_ENABLE_BRT\|VA_ENABLE_PFFDTD' build/CMakeCache.txt
 ```
 
-Both cache values should be `ON`. The app automatically looks for
-`~/miniforge3/envs/va-pffdtd/bin/python`. For a different environment path,
-set it before starting the app:
-
-```sh
-export VA_PFFDTD_PYTHON=/absolute/path/to/pffdtd/bin/python
-python3 app.py
-```
-
-To work in the environment interactively:
-
-```sh
-source /Users/gtreanor/miniforge3/etc/profile.d/conda.sh
-conda activate va-pffdtd
-```
+Both cache values should be `ON`.
 
 The Advanced section for wave/hybrid modes can then select the production
 PFFDTD adapter. PFFDTD still requires a prepared simulation job matching the

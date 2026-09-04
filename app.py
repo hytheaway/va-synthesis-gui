@@ -8,6 +8,7 @@ import base64
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 from http import HTTPStatus
@@ -23,12 +24,14 @@ MAX_UPLOAD = 128 * 1024 * 1024
 
 def find_pffdtd_python() -> Path | None:
     configured = os.environ.get("VA_PFFDTD_PYTHON")
-    candidates = [
-        Path(configured).expanduser() if configured else None,
-        Path.home() / "miniforge3" / "envs" / "va-pffdtd" / "bin" / "python",
-        Path.home() / "miniforge3" / "envs" / "pffdtd" / "bin" / "python",
-    ]
-    return next((candidate for candidate in candidates if candidate and candidate.is_file()), None)
+    if configured:
+        candidate = Path(configured).expanduser()
+        return candidate if candidate.is_file() else None
+    for name in ("python3", "python"):
+        located = shutil.which(name)
+        if located:
+            return Path(located)
+    return None
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -61,13 +64,13 @@ class Handler(SimpleHTTPRequestHandler):
                             )
                             if runtime.returncode == 0:
                                 component["status"] = "ready"
-                                component["detail"] = f"Adapter and Miniforge runtime verified: {pffdtd_python}"
+                                component["detail"] = f"Adapter and Python runtime verified: {pffdtd_python}"
                             else:
                                 component["status"] = "limited"
-                                component["detail"] = "Adapter is built, but the Miniforge runtime import check failed"
+                                component["detail"] = "Adapter is built, but the PFFDTD Python import check failed"
                         else:
                             component["status"] = "limited"
-                            component["detail"] = "Adapter is built, but no PFFDTD Python environment was found"
+                            component["detail"] = "Adapter is built, but no PFFDTD Python interpreter was found"
                 capabilities["renderer"] = str(renderer)
                 self.send_json(capabilities)
             except Exception as error:
