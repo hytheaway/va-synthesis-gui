@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111410">
-  <title>VA Synthesis</title>
+  <title>va-synthesis</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
   <header>
-    <a class="brand" href="#"><span class="brand-mark">VA</span><span>VA Synthesis</span></a>
+    <a class="brand" href="https://github.com/hytheaway/va-synthesis-gui" target="_"><span class="brand-mark">va-s</span><span>github</span></a>
     <details class="engine-state">
       <summary><i></i><span id="engineState">Checking engine</span><b>⌄</b></summary>
       <div class="engine-panel">
@@ -22,7 +22,7 @@
 
   <main>
     <section class="hero">
-      <h1 class="workbench-title">Virtual Acoustics Workbench</h1>
+      <h1 class="workbench-title">va-synthesis: virtual acoustics workbench</h1>
     </section>
 
     <section class="workspace">
@@ -42,12 +42,12 @@
           <label class="mode-card selected">
             <input type="radio" name="mode" value="geometrical" checked>
             <span class="mode-visual ray"><i></i><i></i><i></i></span>
-            <span class="mode-name">Geometrical</span><small>Ray-traced room acoustics</small>
+            <span class="mode-name">Geometrical</span><small>Ray-traced/SDN/ISM</small>
           </label>
           <label class="mode-card">
             <input type="radio" name="mode" value="wave">
             <span class="mode-visual wave"><i></i><i></i><i></i></span>
-            <span class="mode-name">Wave-based</span><small>FDTD pressure field</small>
+            <span class="mode-name">Wave-based</span><small>FDTD</small>
           </label>
           <label class="mode-card">
             <input type="radio" name="mode" value="hybrid">
@@ -56,7 +56,7 @@
           </label>
         </div>
 
-        <div class="section-heading"><span>02</span><div><h2>Room & placement</h2><p>Dimensions and coordinates are in metres.</p></div></div>
+        <div class="section-heading"><span>02</span><div><h2>Room & placement</h2><p>Dimensions and coordinates are measured in meters.</p></div></div>
         <div class="panel room-panel">
           <div class="room-map" id="roomMap">
             <div class="grid-lines"></div>
@@ -70,17 +70,17 @@
             <div class="pin listener-pin" id="listenerPin" title="Drag listener position" role="button" tabindex="0" aria-label="Listener position; drag to move"><i></i><span>LISTENER</span></div>
           </div>
           <div class="room-fields">
-            <fieldset><legend>Room</legend><div class="field-row triple">
+            <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Room</legend><div class="field-row triple">
               <label>Width<input name="room-x" type="number" min="1" max="30" step="0.1" value="5"></label>
               <label>Depth<input name="room-y" type="number" min="1" max="30" step="0.1" value="4"></label>
               <label>Height<input name="room-z" type="number" min="1" max="12" step="0.1" value="3"></label>
             </div></fieldset>
-            <fieldset><legend>Source position</legend><div class="field-row triple">
+            <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Source position</legend><div class="field-row triple">
               <label>X<input name="source-x" type="number" min="0" step="0.1" value="1.2"></label>
               <label>Y<input name="source-y" type="number" min="0" step="0.1" value="1.5"></label>
               <label>Z<input name="source-z" type="number" min="0" step="0.1" value="1.4"></label>
             </div></fieldset>
-            <fieldset><legend>Listener position</legend><div class="field-row triple">
+            <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Listener position</legend><div class="field-row triple">
               <label>X<input name="receiver-x" type="number" min="0" step="0.1" value="3.8"></label>
               <label>Y<input name="receiver-y" type="number" min="0" step="0.1" value="2.5"></label>
               <label>Z<input name="receiver-z" type="number" min="0" step="0.1" value="1.4"></label>
@@ -171,7 +171,7 @@
       </section>
     </section>
   </main>
-  <footer><span>VA Synthesis</span><span>Offline acoustic rendering · runs locally</span></footer>
+  <footer><a href="https://github.com/hytheaway/va-synthesis-gui" target="_blank" style="color: #666d62; text-decoration: none;"><span>va-synthesis</span></a><span>OFFLINE ACOUSTIC RENDERING · RUNS LOCALLY</span></footer>
   <script src="app.js"></script>
 </body>
 </html>

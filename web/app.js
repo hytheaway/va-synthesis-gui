@@ -92,7 +92,35 @@ function updateRoom() {
   updateCost();
 }
 function placePin(selector, x, y) { const pin = $(selector); pin.style.left = `${Math.max(0, Math.min(100, x * 100))}%`; pin.style.top = `${Math.max(0, Math.min(100, y * 100))}%`; }
-$$('.room-fields input').forEach(input => input.addEventListener('input', updateRoom));
+
+const roomDimensionNames = { 'room-x': 'Width', 'room-y': 'Depth', 'room-z': 'Height' };
+function clampRoomDimension(input, bounds = ['max']) {
+  const value = Number(input.value);
+  if (input.value.trim() === '' || !Number.isFinite(value)) return;
+  const min = Number(input.min);
+  const max = Number(input.max);
+  let clamped = value;
+  if (bounds.includes('max') && Number.isFinite(max) && value > max) clamped = max;
+  if (bounds.includes('min') && Number.isFinite(min) && value < min) clamped = min;
+  if (clamped === value) {
+    if ($('#status').textContent.includes('is limited to')) setStatus('');
+    return;
+  }
+  input.value = clamped.toFixed(1);
+  const label = roomDimensionNames[input.name] || 'Room size';
+  if (clamped === max) setStatus(`${label} is limited to ${max.toFixed(0)} m.`);
+}
+
+$$('.room-fields input').forEach(input => {
+  input.addEventListener('input', () => {
+    if (input.name.startsWith('room-')) clampRoomDimension(input);
+    updateRoom();
+  });
+  input.addEventListener('change', () => {
+    if (input.name.startsWith('room-')) clampRoomDimension(input, ['min', 'max']);
+    updateRoom();
+  });
+});
 
 $$('.view-switch button').forEach(button => button.addEventListener('click', () => {
   roomView = button.dataset.view;
@@ -114,9 +142,9 @@ function makePinDraggable(selector, fieldPrefix) {
     const xRatio = Math.max(0, Math.min(1, (clientX - bounds.left) / bounds.width));
     const yRatio = Math.max(0, Math.min(1, (clientY - bounds.top) / bounds.height));
     const verticalAxis = roomView === 'top' ? 'y' : 'z';
-    form.elements[`${fieldPrefix}-x`].value = (xRatio * number('room-x')).toFixed(2);
+    form.elements[`${fieldPrefix}-x`].value = (xRatio * number('room-x')).toFixed(1);
     const verticalRatio = roomView === 'side' ? 1 - yRatio : yRatio;
-    form.elements[`${fieldPrefix}-${verticalAxis}`].value = (verticalRatio * number(`room-${verticalAxis}`)).toFixed(2);
+    form.elements[`${fieldPrefix}-${verticalAxis}`].value = (verticalRatio * number(`room-${verticalAxis}`)).toFixed(1);
     updateRoom();
   }
 
@@ -146,9 +174,9 @@ function makePinDraggable(selector, fieldPrefix) {
     const verticalAxis = roomView === 'top' ? 'y' : 'z';
     const xField = form.elements[`${fieldPrefix}-x`];
     const verticalField = form.elements[`${fieldPrefix}-${verticalAxis}`];
-    xField.value = Math.max(0, Math.min(number('room-x'), Number(xField.value) + movement[0] * step)).toFixed(2);
+    xField.value = Math.max(0, Math.min(number('room-x'), Number(xField.value) + movement[0] * step)).toFixed(1);
     const verticalDirection = roomView === 'side' ? -movement[1] : movement[1];
-    verticalField.value = Math.max(0, Math.min(number(`room-${verticalAxis}`), Number(verticalField.value) + verticalDirection * step)).toFixed(2);
+    verticalField.value = Math.max(0, Math.min(number(`room-${verticalAxis}`), Number(verticalField.value) + verticalDirection * step)).toFixed(1);
     updateRoom();
     event.preventDefault();
   });
