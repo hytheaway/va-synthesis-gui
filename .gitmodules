@@ -1,0 +1,3 @@
+[submodule "submodules/va-synthesis"]
+	path = submodules/va-synthesis
+	url = https://github.com/hytheaway/va-synthesis.git
