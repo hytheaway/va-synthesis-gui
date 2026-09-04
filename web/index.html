@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111410">
+  <title>VA Synthesis</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+  <header>
+    <a class="brand" href="#"><span class="brand-mark">VA</span><span>VA Synthesis</span></a>
+    <details class="engine-state">
+      <summary><i></i><span id="engineState">Checking engine</span><b>⌄</b></summary>
+      <div class="engine-panel">
+        <div class="engine-panel-heading"><strong>Engine capabilities</strong><button id="refreshHealth" type="button" aria-label="Refresh engine status">↻</button></div>
+        <div id="engineDetails"><p>Running renderer self-check…</p></div>
+      </div>
+    </details>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1 class="workbench-title">Virtual Acoustics Workbench</h1>
+    </section>
+
+    <section class="workspace">
+      <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Choose a WAV file">
+        <input id="audioInput" type="file" accept="audio/wav,.wav" hidden>
+        <div class="drop-icon"><span>↘</span></div>
+        <div class="drop-copy">
+          <strong id="dropTitle">Drop a WAV file here</strong>
+          <span id="dropMeta">or click to browse · PCM / float · 128 MB max</span>
+        </div>
+        <button id="replaceButton" class="ghost small" type="button" hidden>Replace</button>
+      </div>
+
+      <form id="controls">
+        <div class="section-heading"><span>01</span><div><h2>Propagation model</h2><p>Choose how energy travels from source to listener.</p></div></div>
+        <div class="mode-grid" role="radiogroup" aria-label="Propagation model">
+          <label class="mode-card selected">
+            <input type="radio" name="mode" value="geometrical" checked>
+            <span class="mode-visual ray"><i></i><i></i><i></i></span>
+            <span class="mode-name">Geometrical</span><small>Ray-traced room acoustics</small>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="mode" value="wave">
+            <span class="mode-visual wave"><i></i><i></i><i></i></span>
+            <span class="mode-name">Wave-based</span><small>FDTD pressure field</small>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="mode" value="hybrid">
+            <span class="mode-visual hybrid"><i></i><i></i><i></i></span>
+            <span class="mode-name">Hybrid</span><small>Wave low · ray high</small>
+          </label>
+        </div>
+
+        <div class="section-heading"><span>02</span><div><h2>Room & placement</h2><p>Dimensions and coordinates are in metres.</p></div></div>
+        <div class="panel room-panel">
+          <div class="room-map" id="roomMap">
+            <div class="grid-lines"></div>
+            <div class="view-switch" role="group" aria-label="Room diagram view">
+              <button type="button" class="active" data-view="top" aria-pressed="true">Top</button>
+              <button type="button" data-view="side" aria-pressed="false">Side</button>
+            </div>
+            <div class="room-label room-w"><span id="widthLabel">5.0 m</span></div>
+            <div class="room-label room-d"><span id="verticalDimensionLabel">4.0 m</span></div>
+            <div class="pin source-pin" id="sourcePin" title="Drag source position" role="button" tabindex="0" aria-label="Source position; drag to move"><i></i><span>SOURCE</span></div>
+            <div class="pin listener-pin" id="listenerPin" title="Drag listener position" role="button" tabindex="0" aria-label="Listener position; drag to move"><i></i><span>LISTENER</span></div>
+          </div>
+          <div class="room-fields">
+            <fieldset><legend>Room</legend><div class="field-row triple">
+              <label>Width<input name="room-x" type="number" min="1" max="30" step="0.1" value="5"></label>
+              <label>Depth<input name="room-y" type="number" min="1" max="30" step="0.1" value="4"></label>
+              <label>Height<input name="room-z" type="number" min="1" max="12" step="0.1" value="3"></label>
+            </div></fieldset>
+            <fieldset><legend>Source position</legend><div class="field-row triple">
+              <label>X<input name="source-x" type="number" min="0" step="0.1" value="1.2"></label>
+              <label>Y<input name="source-y" type="number" min="0" step="0.1" value="1.5"></label>
+              <label>Z<input name="source-z" type="number" min="0" step="0.1" value="1.4"></label>
+            </div></fieldset>
+            <fieldset><legend>Listener position</legend><div class="field-row triple">
+              <label>X<input name="receiver-x" type="number" min="0" step="0.1" value="3.8"></label>
+              <label>Y<input name="receiver-y" type="number" min="0" step="0.1" value="2.5"></label>
+              <label>Z<input name="receiver-z" type="number" min="0" step="0.1" value="1.4"></label>
+            </div></fieldset>
+          </div>
+        </div>
+
+        <div class="section-heading"><span>03</span><div><h2>Acoustic parameters</h2><p id="parameterHint">Direct-path controls exposed by the geometrical solver.</p></div></div>
+        <div class="panel parameter-panel">
+          <div class="param common-param">
+            <div><label for="irDuration">Response duration</label><small>Length of the modeled impulse response</small></div>
+            <output id="irDurationOutput">0.60 s</output>
+            <input id="irDuration" name="ir-duration" type="range" min="0.05" max="3" step="0.05" value="0.6">
+          </div>
+          <div class="param geometric-param">
+            <div><label for="sourceGain">Source gain</label><small>Linear source amplitude</small></div>
+            <output id="sourceGainOutput">1.00</output>
+            <input id="sourceGain" name="source-gain" type="range" min="0" max="2" step="0.01" value="1">
+          </div>
+          <div class="param geometric-param">
+            <div><label for="reflectionOrder">Reflection order</label><small>Maximum wall bounces modeled per path</small></div>
+            <output id="reflectionOrderOutput">2</output>
+            <input id="reflectionOrder" name="reflection-order" type="range" min="0" max="8" step="1" value="2">
+          </div>
+          <div class="param geometric-param">
+            <div><label for="wallAbsorption">Wall absorption</label><small>0 is fully reflective; higher values shorten decay</small></div>
+            <output id="wallAbsorptionOutput">0.20</output>
+            <input id="wallAbsorption" name="wall-absorption" type="range" min="0" max="0.95" step="0.01" value="0.2">
+          </div>
+          <div class="toggle-row geometric-param"><div><strong>Room reflections</strong><small>Include reverberant paths from room surfaces</small></div><label class="switch"><input name="reverberation" type="checkbox" checked><i></i></label></div>
+          <div class="toggle-row geometric-param"><div><strong>Direct path</strong><small>Include unobstructed source-to-listener sound</small></div><label class="switch"><input name="direct-path" type="checkbox" checked><i></i></label></div>
+          <div class="toggle-row geometric-param"><div><strong>Propagation delay</strong><small>Apply travel time from source to listener</small></div><label class="switch"><input name="propagation-delay" type="checkbox" checked><i></i></label></div>
+          <div class="toggle-row geometric-param"><div><strong>Distance attenuation</strong><small>Reduce level over distance</small></div><label class="switch"><input name="distance-attenuation" type="checkbox" checked><i></i></label></div>
+          <details class="advanced geometric-param">
+            <summary>Geometrical backend <span>Advanced</span></summary>
+            <div class="advanced-body">
+              <label>Room method<select name="geometrical-method"><option value="auto">Best available (BRT SDN preferred)</option><option value="sdn">BRT scattering delay network</option><option value="image-source">BRT image source</option><option value="ray-tracing">Deterministic ray tracing</option><option value="free-field">Free field only</option></select></label>
+              <label>Ray count<select name="ray-count"><option value="8192">8,192 · Fast</option><option value="32768" selected>32,768 · Balanced</option><option value="131072">131,072 · Detailed</option></select></label>
+              <label>Receiver radius<input name="receiver-radius" type="number" min="0.02" max="1" step="0.01" value="0.2"></label>
+              <p class="note">Image source and SDN require BRTLibrary. Ray controls apply only to deterministic ray tracing.</p>
+            </div>
+          </details>
+          <div class="param wave-param" hidden>
+            <div><label for="maximumFrequency">Maximum frequency</label><small>Wave solver valid bandwidth</small></div>
+            <output id="maximumFrequencyOutput">800 Hz</output>
+            <input id="maximumFrequency" name="maximum-frequency" type="range" min="100" max="2000" step="50" value="800">
+          </div>
+          <div class="param wave-param" hidden>
+            <div><label for="ppw">Points per wavelength</label><small>Higher values improve spatial accuracy and cost</small></div>
+            <output id="ppwOutput">6.0</output>
+            <input id="ppw" name="points-per-wavelength" type="range" min="4" max="12" step="0.5" value="6">
+          </div>
+          <div class="param wave-param" hidden>
+            <div><label for="absorption">Boundary absorption</label><small>0 is reflective; 1 is maximally absorbing</small></div>
+            <output id="absorptionOutput">0.20</output>
+            <input id="absorption" name="boundary-absorption" type="range" min="0" max="1" step="0.01" value="0.2">
+          </div>
+          <div class="param hybrid-param" hidden>
+            <div><label for="crossover">Hybrid crossover</label><small>Wave field below; geometrical field above</small></div>
+            <output id="crossoverOutput">500 Hz</output>
+            <input id="crossover" name="crossover" type="range" min="80" max="1500" step="10" value="500">
+          </div>
+          <details class="advanced wave-param" hidden>
+            <summary>PFFDTD backend <span>Advanced</span></summary>
+            <div class="advanced-body">
+              <label>Wave implementation<select name="wave-backend"><option value="reference">Built-in reference FDTD</option><option value="pffdtd">PFFDTD prepared job</option></select></label>
+              <div class="pffdtd-fields" hidden>
+                <label>Prepared job directory<input name="pffdtd-data-directory" type="text" placeholder="/path/to/job"></label>
+                <label>Python executable<input name="pffdtd-python" type="text" placeholder="Auto-detect Miniforge va-pffdtd"></label>
+                <label>Execution<select name="pffdtd-execution"><option value="prepared">Use existing sim_outs.h5</option><option value="python">Run Python CPU</option><option value="native-double">Native CPU double</option><option value="native-single">Native CPU single</option></select></label>
+                <label class="check"><input name="air-absorption" type="checkbox"> Apply modal air absorption</label>
+              </div>
+              <p class="note">PFFDTD requires the recursive submodule, its environment, and a job prepared for these source/receiver counts.</p>
+            </div>
+          </details>
+          <div class="toggle-row"><div><strong>Keep reverberation tail</strong><small>Allow output to extend past the dry file</small></div><label class="switch"><input name="reverb-tail" type="checkbox" checked><i></i></label></div>
+          <div class="toggle-row"><div><strong>Normalize output</strong><small>Peak-normalize the exported 24-bit WAV</small></div><label class="switch"><input name="normalize" type="checkbox" checked><i></i></label></div>
+        </div>
+
+        <div id="costNote" class="cost-note" hidden><span>≈</span><div><strong id="costTitle">Simulation estimate</strong><small id="costText"></small></div></div>
+        <button id="renderButton" class="render-button" type="submit" disabled><span>Render acoustic result</span><i>→</i></button>
+        <div id="status" class="status" aria-live="polite"></div>
+      </form>
+
+      <section id="resultPanel" class="result-panel" hidden>
+        <div><p class="eyebrow">RENDER COMPLETE</p><h2>Your space is ready.</h2><p id="resultMessage"></p></div>
+        <div class="result-actions"><audio id="resultAudio" controls></audio><a id="downloadButton" class="download-button" download>Download WAV <span>↓</span></a></div>
+      </section>
+    </section>
+  </main>
+  <footer><span>VA Synthesis</span><span>Offline acoustic rendering · runs locally</span></footer>
+  <script src="app.js"></script>
+</body>
+</html>
