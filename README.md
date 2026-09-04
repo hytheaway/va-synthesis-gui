@@ -38,7 +38,7 @@ export VA_PFFDTD_PYTHON=/absolute/path/to/python
   'import h5py, numba, numpy, resampy, scipy; import sys; print(sys.executable)'
 ```
 
-For example, if you followed the PFFDTD setup from the va-synthesis repo, you should have:
+For example, if you followed the PFFDTD setup from the [va-synthesis repo](https://github.com/hytheaway/va-synthesis), you should have:
 
 ```sh
 export VA_PFFDTD_PYTHON=~/miniforge3/envs/va-pffdtd/bin/python
