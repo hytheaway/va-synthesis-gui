@@ -59,7 +59,7 @@ Both cache values should be `ON`.
 
 The Advanced section for wave/hybrid modes can then select the production PFFDTD adapter. PFFDTD still requires a prepared simulation job matching the configured source and receiver count. See [`pffdtd.md`](submodules/va-synthesis/docs/pffdtd.md) for job preparation and execution details. Upstream currently notes that macOS support is limited by Python multiprocessing/pickling behavior; the environment and adapter are installed here, but some full simulations may still require Linux.
 
-At the currently pinned revisions, BRT's SDN self-check passes on this machine and is the automatic geometrical default. The BRT image-source adapter compiles but does not produce reflected arrivals in its upstream regression test; the app's capability indicator reports that method as limited instead of silently claiming it is ready.
+At the currently pinned revisions, BRT's SDN and image-source self-checks both pass when BRT is built. SDN remains the automatic geometrical default.
 
 ## Architecture
 
