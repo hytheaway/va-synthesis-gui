@@ -30,7 +30,7 @@ git submodule update --init --recursive
 
 This fetches BRTLibrary, its Eigen and rapidobj dependencies, and PFFDTD at the commits pinned by `va-synthesis`.
 
-PFFDTD needs a Python interpreter that can import its numerical packages. The pinned fork lists those packages under `submodules/va-synthesis/submodules/pffdtd/python/`. Create that environment with any tool you prefer, then point this app at the resulting interpreter:
+PFFDTD needs a Python interpreter that can import its numerical packages. Those packages are under `submodules/va-synthesis/submodules/pffdtd/python/`. Create that environment with any tool you prefer, then point this app at the resulting interpreter:
 
 ```sh
 export VA_PFFDTD_PYTHON=/absolute/path/to/python
@@ -57,10 +57,8 @@ grep 'VA_ENABLE_BRT\|VA_ENABLE_PFFDTD' build/CMakeCache.txt
 
 Both cache values should be `ON`.
 
-The Advanced section for wave/hybrid modes can then select the production PFFDTD adapter. PFFDTD still requires a prepared simulation job matching the configured source and receiver count. See [`pffdtd.md`](submodules/va-synthesis/docs/pffdtd.md) for job preparation and execution details. Upstream currently notes that macOS support is limited by Python multiprocessing/pickling behavior; the environment and adapter are installed here, but some full simulations may still require Linux.
+## More info
 
-At the currently pinned revisions, BRT's SDN and image-source self-checks both pass when BRT is built. SDN remains the automatic geometrical default.
+The Advanced section for wave/hybrid modes can then select the PFFDTD adapter. PFFDTD still requires a prepared simulation job matching the configured source and receiver count. See [`pffdtd.md`](submodules/va-synthesis/docs/pffdtd.md) for more info on this. macOS has some multiprocessing/pickling issues, but this should be limited to PFFDTD's visualization, which isn't used here.
 
-## Architecture
-
-The dependency-free Python host only serves static assets, accepts the local WAV upload, and starts `build/va_render`. The C++ renderer owns WAV conversion, constructs the neutral `va::Scene`, selects a `va::PropagationSolver`, calls `va::Engine::render`, and writes the output WAV. This keeps all acoustics and convolution inside `va-synthesis` rather than reimplementing it in the UI.
+The Python host only serves static assets, accepts the local WAV upload, and starts `build/va_render`. The C++ renderer handles WAV conversion, constructs `va::Scene`, selects a `va::PropagationSolver`, calls `va::Engine::render`, and writes the output WAV.
