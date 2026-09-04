@@ -10,6 +10,7 @@ rendered result.
 Requirements: CMake 3.22+, a C++20 compiler, and Python 3.10+.
 
 ```sh
+git submodule update --init --recursive
 ./scripts/build.sh
 python3 app.py
 ```
