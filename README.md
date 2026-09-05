@@ -1,6 +1,6 @@
 # va-synthesis-gui
 
-A local browser-based workbench for the [`va-synthesis`](submodules/va-synthesis) virtual acoustics engine. Drop in a WAV file, place a source and listener in a room, choose a propagation model, adjust its parameters, and download the rendered result.
+A local browser-based workbench for the [`va-synthesis`](https://github.com/hytheaway/va-synthesis) virtual acoustics engine. Drop in a WAV file, place a source and listener in a room, choose a propagation model, adjust its parameters, and download the rendered result.
 
 ## Run
 
@@ -59,6 +59,6 @@ Both cache values should be `ON`.
 
 ## More info
 
-The Advanced section for wave/hybrid modes can then select the PFFDTD adapter. PFFDTD still requires a prepared simulation job matching the configured source and receiver count. See [`pffdtd.md`](submodules/va-synthesis/docs/pffdtd.md) for more info on this. macOS has some multiprocessing/pickling issues, but this should be limited to PFFDTD's visualization, which isn't used here.
+The Advanced section for wave/hybrid modes can then select the PFFDTD adapter. PFFDTD still requires a prepared simulation job matching the configured source and receiver count. See [`pffdtd.md`](https://github.com/hytheaway/va-synthesis/blob/main/docs/pffdtd.md) for more info on this. macOS has some multiprocessing/pickling issues, but this should be limited to PFFDTD's visualization, which isn't used here.
 
 The Python host only serves static assets, accepts the local WAV upload, and starts `build/va_render`. The C++ renderer handles WAV conversion, constructs `va::Scene`, selects a `va::PropagationSolver`, calls `va::Engine::render`, and writes the output WAV.
