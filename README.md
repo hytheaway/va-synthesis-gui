@@ -1,6 +1,6 @@
 # va-synthesis-gui
 
-A local browser-based workbench for the [`va-synthesis`](https://github.com/hytheaway/va-synthesis) virtual acoustics engine. Drop in a WAV file, place a source and listener in a room, choose a propagation model, adjust its parameters, and download the rendered result.
+A browser workbench for the [`va-synthesis`](https://github.com/hytheaway/va-synthesis) virtual acoustics engine. Drop in a WAV file, place a source and listener in a room, choose a propagation model, adjust its parameters, and download the rendered result.
 
 ## Initialize, Build, and Run
 
