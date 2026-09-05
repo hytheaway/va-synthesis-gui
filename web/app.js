@@ -7,6 +7,7 @@ const renderButton = $('#renderButton');
 let audioFile = null;
 let resultUrl = null;
 let roomView = 'top';
+let rendering = false;
 
 async function updateEngineHealth() {
   const state = $('.engine-state');
@@ -43,7 +44,7 @@ function selectFile(file) {
   $('#dropMeta').textContent = `${(file.size / 1048576).toFixed(2)} MB · ready to model`;
   $('#replaceButton').hidden = false;
   dropZone.classList.add('loaded');
-  renderButton.disabled = false;
+  renderButton.disabled = rendering;
   setStatus('');
 }
 
@@ -203,32 +204,142 @@ $('select[name=wave-backend]').addEventListener('change', e => {
   updateCost();
 });
 
+const JOB_KEY = 'va-render-job';
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 function setStatus(message) { $('#status').textContent = message; }
 function fileToBase64(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }); }
 
+function formatElapsed(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remainder = total % 60;
+  if (hours) return `${hours}h ${minutes}m ${remainder}s`;
+  if (minutes) return `${minutes}m ${remainder}s`;
+  return `${remainder}s`;
+}
+
+function setBusy(busy, label) {
+  rendering = busy;
+  renderButton.classList.toggle('loading', busy);
+  renderButton.querySelector('span').textContent = label || 'Render acoustic result';
+  renderButton.disabled = busy || !audioFile;
+}
+
+function showResult(blob, job) {
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
+  resultUrl = URL.createObjectURL(blob);
+  const sourceName = (audioFile && audioFile.name) || job.fileName || 'audio.wav';
+  $('#resultAudio').src = resultUrl;
+  $('#downloadButton').href = resultUrl;
+  $('#downloadButton').download = `${sourceName.replace(/\.wav$/i, '')}-va.wav`;
+  $('#resultMessage').textContent = job.message || `${(blob.size / 1048576).toFixed(2)} MB WAV`;
+  $('#resultPanel').hidden = false;
+  $('#resultPanel').scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+async function waitForJob(jobId) {
+  sessionStorage.setItem(JOB_KEY, jobId);
+  let failures = 0;
+  while (true) {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}`, {cache: 'no-store'});
+      if (response.status === 404) {
+        sessionStorage.removeItem(JOB_KEY);
+        throw new Error('The render job is no longer available. Start a new render.');
+      }
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Lost contact with the renderer');
+      }
+      failures = 0;
+      const job = await response.json();
+      const elapsed = formatElapsed(job.elapsed);
+      renderButton.querySelector('span').textContent = `Computing… ${elapsed}`;
+      const detail = job.message ? job.message : 'Renderer is still running';
+      setStatus(`${detail} · ${elapsed} elapsed`);
+      if (job.status === 'done') {
+        return job;
+      }
+      if (job.status === 'error') {
+        sessionStorage.removeItem(JOB_KEY);
+        throw new Error(job.error || 'The acoustic renderer failed');
+      }
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+      failures += 1;
+      if (failures >= 30) throw new Error('Lost contact with the renderer');
+      setStatus(`Reconnecting to the renderer (${failures})…`);
+    }
+    await sleep(1000);
+  }
+}
+
+async function downloadResult(job) {
+  let failures = 0;
+  while (true) {
+    try {
+      const response = await fetch(`/api/jobs/${job.jobId}/result`, {cache: 'no-store'});
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Could not download the rendered audio');
+      }
+      showResult(await response.blob(), job);
+      return;
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+      failures += 1;
+      if (failures >= 30) throw new Error('Lost contact with the renderer');
+      setStatus(`Reconnecting to download the result (${failures})…`);
+      await sleep(1000);
+    }
+  }
+}
+
+async function followJob(jobId) {
+  setBusy(true, 'Computing pressure field…');
+  try {
+    const job = await waitForJob(jobId);
+    await downloadResult(job);
+    sessionStorage.removeItem(JOB_KEY);
+    setStatus('');
+  } catch (error) {
+    setStatus(error.message);
+  } finally {
+    setBusy(false);
+  }
+}
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
-  if (!audioFile) return;
+  if (!audioFile || rendering) return;
   const room = ['x','y','z'];
   for (const axis of room) {
     if (number(`source-${axis}`) < 0 || number(`source-${axis}`) > number(`room-${axis}`) || number(`receiver-${axis}`) < 0 || number(`receiver-${axis}`) > number(`room-${axis}`)) {
       setStatus(`Source and listener ${axis.toUpperCase()} positions must be inside the room.`); return;
     }
   }
-  renderButton.disabled = true; renderButton.classList.add('loading'); renderButton.querySelector('span').textContent = 'Computing pressure field…'; setStatus('This runs locally. Wave simulations can take a while.');
+  setBusy(true, 'Computing pressure field…');
+  setStatus('This runs locally and will keep going until it finishes.');
   try {
     const data = Object.fromEntries(new FormData(form).entries());
     $$('input[type=checkbox]', form).forEach(input => data[input.name] = input.checked);
     data.fileName = audioFile.name; data.audioBase64 = await fileToBase64(audioFile);
     const response = await fetch('/api/render', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
     if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Render failed'); }
-    const blob = await response.blob();
-    if (resultUrl) URL.revokeObjectURL(resultUrl); resultUrl = URL.createObjectURL(blob);
-    $('#resultAudio').src = resultUrl; $('#downloadButton').href = resultUrl; $('#downloadButton').download = `${audioFile.name.replace(/\.wav$/i,'')}-va.wav`;
-    $('#resultMessage').textContent = response.headers.get('X-VA-Message') || `${(blob.size / 1048576).toFixed(2)} MB WAV`;
-    $('#resultPanel').hidden = false; $('#resultPanel').scrollIntoView({behavior:'smooth',block:'center'}); setStatus('');
-  } catch (error) { setStatus(error.message); }
-  finally { renderButton.disabled = false; renderButton.classList.remove('loading'); renderButton.querySelector('span').textContent = 'Render acoustic result'; }
+    const started = await response.json();
+    await followJob(started.jobId);
+  } catch (error) {
+    setStatus(error.message);
+    setBusy(false);
+  }
 });
+
+const pendingJob = sessionStorage.getItem(JOB_KEY);
+if (pendingJob) {
+  setStatus('Reconnecting to the running render…');
+  followJob(pendingJob);
+}
 
 updateMode(); updateRoom();
