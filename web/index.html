@@ -58,6 +58,7 @@
 
         <div class="section-heading"><span>02</span><div><h2>Room & placement</h2><p>Dimensions and coordinates are measured in meters.</p></div></div>
         <div class="panel room-panel">
+          <div class="room-map-slot">
           <div class="room-map" id="roomMap">
             <div class="grid-lines"></div>
             <svg id="roomGeometry" class="room-geometry" hidden aria-hidden="true" preserveAspectRatio="none"></svg>
@@ -68,7 +69,9 @@
             <div class="room-label room-w"><span id="widthLabel">4.0 m</span></div>
             <div class="room-label room-d"><span id="verticalDimensionLabel">5.0 m</span></div>
             <div class="pin source-pin" id="sourcePin" title="Drag source position" role="button" tabindex="0" aria-label="Source position; drag to move"><i></i><span>SOURCE</span></div>
-            <div class="pin listener-pin" id="listenerPin" title="Drag listener position" role="button" tabindex="0" aria-label="Listener position; drag to move"><i></i><span>LISTENER</span></div>
+            <div class="pin listener-pin" id="listenerPin" title="Drag listener position" role="button" tabindex="0" aria-label="Listener position; drag to move">
+              <div class="listener-face" id="listenerFace" aria-hidden="true"><svg viewBox="0 0 44 44"><g class="listener-top"><ellipse class="ear" cx="22" cy="9" rx="5.5" ry="3.5"/><ellipse class="ear" cx="22" cy="35" rx="5.5" ry="3.5"/></g><polygon class="nose" points="2,22.5 13,17 13,27"/><circle class="head" cx="22" cy="22" r="10"/><g class="listener-side"><ellipse class="ear" cx="22" cy="22" rx="3.5" ry="6"/></g></svg></div><span>LISTENER</span></div>
+          </div>
           </div>
           <div class="room-fields">
             <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Room</legend><div class="field-row triple">
@@ -82,7 +85,7 @@
               <label>Z<input name="source-z" type="number" min="0" step="any" value="1.4"></label>
             </div></fieldset>
             <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Listener position</legend><div class="field-row triple">
-              <label>X<input name="receiver-x" type="number" min="0" step="any" value="3.8"></label>
+              <label>X<input name="receiver-x" type="number" min="0" step="any" value="2.8"></label>
               <label>Y<input name="receiver-y" type="number" min="0" step="any" value="2.5"></label>
               <label>Z<input name="receiver-z" type="number" min="0" step="any" value="1.4"></label>
             </div>

@@ -55,7 +55,6 @@ function selectFile(file) {
 }
 
 dropZone.addEventListener('click', e => { if (e.target !== $('#replaceButton')) audioInput.click(); });
-dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') audioInput.click(); });
 $('#replaceButton').addEventListener('click', () => audioInput.click());
 audioInput.addEventListener('change', () => selectFile(audioInput.files[0]));
 ['dragenter','dragover'].forEach(type => dropZone.addEventListener(type, e => { e.preventDefault(); dropZone.classList.add('dragging'); }));
@@ -186,7 +185,23 @@ function updateRoom() {
   const listenerVertical = (number(`receiver-${verticalAxis}`) - origin[axisIndex(verticalAxis)]) / verticalSize;
   placePin('#sourcePin', (number('source-x') - origin[0]) / width, roomView === 'side' ? 1 - sourceVertical : sourceVertical);
   placePin('#listenerPin', (number('receiver-x') - origin[0]) / width, roomView === 'side' ? 1 - listenerVertical : listenerVertical);
+  const map = $('#roomMap');
+  map.style.setProperty('--room-aspect', String(width / Math.max(verticalSize, 1e-6)));
+  const grid = $('.grid-lines', map);
+  if (grid) grid.style.backgroundSize = `${100 / width}% ${100 / verticalSize}%`;
+  updateListenerPose();
   updateCost();
+}
+function updateListenerPose() {
+  const yaw = Number.isFinite(number('receiver-yaw')) ? number('receiver-yaw') : 0;
+  const pitch = Number.isFinite(number('receiver-pitch')) ? number('receiver-pitch') : 0;
+  const roll = Number.isFinite(number('receiver-roll')) ? number('receiver-roll') : 0;
+  const face = $('#listenerFace');
+  if (!face) return;
+  // Identity looks along +X. Top view is XY with +Y down the diagram; side view is XZ with +Z up.
+  face.style.transform = roomView === 'top'
+    ? `rotateZ(${yaw}deg) rotateY(${pitch}deg) rotateX(${roll}deg)`
+    : `rotateZ(${-pitch}deg) rotateY(${yaw}deg) rotateX(${roll}deg)`;
 }
 function placePin(selector, x, y) { const pin = $(selector); pin.style.left = `${Math.max(0, Math.min(100, x * 100))}%`; pin.style.top = `${Math.max(0, Math.min(100, y * 100))}%`; }
 
@@ -209,13 +224,23 @@ function clampRoomDimension(input, bounds = ['max']) {
   if (clamped === max) setStatus(`${label} is limited to ${max.toFixed(0)} m.`);
 }
 
+function wrapListenerOrientation(input) {
+  if (!/^receiver-(yaw|pitch|roll)$/.test(input.name)) return;
+  const value = Number(input.value);
+  if (input.value.trim() === '' || !Number.isFinite(value)) return;
+  if (value > 359) input.value = (value - 360);
+  if (value < -359) input.value = (value + 360);
+}
+
 $$('.room-fields input').forEach(input => {
   input.addEventListener('input', () => {
     if (input.name.startsWith('room-')) clampRoomDimension(input);
+    wrapListenerOrientation(input);
     updateRoom();
   });
   input.addEventListener('change', () => {
     if (input.name.startsWith('room-')) clampRoomDimension(input, ['min', 'max']);
+    wrapListenerOrientation(input);
     updateRoom();
   });
 });
