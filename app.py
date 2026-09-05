@@ -8,6 +8,7 @@ import base64
 import json
 import math
 import os
+import sys
 import threading
 import time
 import uuid
@@ -27,15 +28,81 @@ VA_ROOT = ROOT / "submodules" / "va-synthesis"
 PREPARE_SCRIPT = VA_ROOT / "tools" / "prepare_pffdtd_job.py"
 MAX_UPLOAD = 128 * 1024 * 1024
 JOB_TTL_SECONDS = 60 * 60
+BROWSE_LOCK = threading.Lock()
+PICKER_SCRIPT = r"""
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+import tkinter as tk
+from tkinter import filedialog
+
+request = json.load(sys.stdin)
+if sys.platform == "darwin":
+    subprocess.run(
+        [
+            "osascript", "-e",
+            f'tell application "System Events" to set frontmost of every process whose unix id is {os.getpid()} to true',
+        ],
+        check=False,
+        capture_output=True,
+    )
+
+root = tk.Tk()
+root.title(request.get("title") or "Select")
+root.geometry("1x1+0+0")
+try:
+    root.attributes("-topmost", True)
+except tk.TclError:
+    pass
+try:
+    root.call("::tk::mac::ReopenApplication")
+except tk.TclError:
+    pass
+root.lift()
+root.focus_force()
+root.update()
+
+kind = request["kind"]
+title = request.get("title") or ("Select a folder" if kind == "directory" else "Select a file")
+initial = Path(request.get("initial") or "")
+initialdir = ""
+initialfile = ""
+if initial.is_file():
+    initialdir = str(initial.parent)
+    initialfile = initial.name
+elif initial.is_dir():
+    initialdir = str(initial)
+elif initial.parent.is_dir():
+    initialdir = str(initial.parent)
+options = {"title": title, "parent": root}
+if initialdir:
+    options["initialdir"] = initialdir
+if kind == "directory":
+    chosen = filedialog.askdirectory(**options)
+else:
+    if initialfile:
+        options["initialfile"] = initialfile
+    types = [str(item).lstrip(".") for item in (request.get("types") or []) if str(item).strip()]
+    if types:
+        patterns = " ".join(f"*.{ext}" for ext in types)
+        options["filetypes"] = [(patterns, patterns), ("All files", "*.*")]
+    else:
+        options["filetypes"] = [("All files", "*.*")]
+    chosen = filedialog.askopenfilename(**options)
+try:
+    root.attributes("-topmost", False)
+except tk.TclError:
+    pass
+root.destroy()
+json.dump({"path": chosen or ""}, sys.stdout)
+"""
 RENDER_SKIP_KEYS = {
     "fileName",
     "pffdtd-job-mode",
-    "pffdtd-repository",
     "pffdtd-model",
     "pffdtd-output",
-    "pffdtd-fmax",
-    "pffdtd-ppw",
-    "pffdtd-duration",
     "pffdtd-source",
     "pffdtd-processes",
     "pffdtd-differentiate-source",
@@ -71,6 +138,120 @@ def resolve_va_path(raw_path: str, *, must_exist: bool = True) -> Path:
     if must_exist and not path.exists():
         raise ValueError(f"Path not found: {path}")
     return path
+
+
+def browse_anchor(raw_path: str) -> Path:
+    text = (raw_path or "").strip()
+    if not text:
+        return VA_ROOT
+    try:
+        path = resolve_va_path(text, must_exist=False)
+    except Exception:
+        return VA_ROOT
+    if path.exists():
+        return path
+    if path.parent.exists():
+        return path.parent
+    return VA_ROOT
+
+
+def display_selected_path(chosen: Path, *, basename: bool = False, relative_to: Path | None = None) -> str:
+    chosen = chosen.resolve()
+    if basename:
+        if relative_to is not None:
+            try:
+                return str(chosen.relative_to(relative_to.resolve()))
+            except ValueError:
+                pass
+        return chosen.name
+    try:
+        return str(chosen.relative_to(VA_ROOT))
+    except ValueError:
+        return str(chosen)
+
+
+def _applescript_quote(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def pick_with_osascript(*, kind: str, title: str, initial: Path, types: list[str]) -> Path | None:
+    if initial.is_file():
+        location = initial.parent
+    elif initial.is_dir():
+        location = initial
+    elif initial.parent.is_dir():
+        location = initial.parent
+    else:
+        location = Path.home()
+    prompt = title or ("Select a folder" if kind == "directory" else "Select a file")
+    location_clause = f" default location POSIX file {_applescript_quote(str(location))}"
+    if kind == "directory":
+        chooser = (
+            f"POSIX path of (choose folder with prompt {_applescript_quote(prompt)}"
+            f"{location_clause})"
+        )
+    else:
+        apple_types: list[str] = []
+        for ext in types:
+            if ext.lower() == "json":
+                apple_types.extend(["json", "public.json"])
+        type_clause = ""
+        if apple_types:
+            type_clause = " of type {" + ", ".join(_applescript_quote(item) for item in apple_types) + "}"
+        chooser = (
+            f"POSIX path of (choose file with prompt {_applescript_quote(prompt)}"
+            f"{type_clause}{location_clause})"
+        )
+    script = (
+        'tell application "System Events" to activate\n'
+        "try\n"
+        f"    {chooser}\n"
+        "on error\n"
+        '    return ""\n'
+        "end try\n"
+    )
+    completed = subprocess.run(
+        ["osascript"],
+        input=script,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "macOS file picker failed").strip()
+        raise ValueError(detail.splitlines()[-1] if detail else "macOS file picker failed")
+    chosen = completed.stdout.strip().rstrip("/")
+    return Path(chosen) if chosen else None
+
+
+def pick_native_path(*, kind: str, title: str, initial: Path, types: list[str]) -> Path | None:
+    if sys.platform == "darwin":
+        try:
+            return pick_with_osascript(kind=kind, title=title, initial=initial, types=types)
+        except (OSError, ValueError):
+            pass
+    payload = {
+        "kind": kind,
+        "title": title,
+        "initial": str(initial),
+        "types": types,
+    }
+    completed = subprocess.run(
+        [sys.executable, "-c", PICKER_SCRIPT],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "file picker failed").strip()
+        raise ValueError(detail.splitlines()[-1] if detail else "file picker failed")
+    try:
+        result = json.loads(completed.stdout or "{}")
+    except json.JSONDecodeError as error:
+        raise ValueError("file picker returned unreadable output") from error
+    chosen = str(result.get("path") or "").strip()
+    return Path(chosen) if chosen else None
 
 
 def _xyz(value: object) -> list[float] | None:
@@ -208,9 +389,9 @@ def build_pffdtd_prepare_command(request: dict[str, object], python: str) -> lis
         "--repository", required_text(request, "pffdtd-repository"),
         "--model", required_text(request, "pffdtd-model"),
         "--output", required_text(request, "pffdtd-output"),
-        "--maximum-frequency", required_text(request, "pffdtd-fmax"),
-        "--points-per-wavelength", str(request.get("pffdtd-ppw") or "8"),
-        "--duration", required_text(request, "pffdtd-duration"),
+        "--maximum-frequency", required_text(request, "maximum-frequency"),
+        "--points-per-wavelength", str(request.get("points-per-wavelength") or "8"),
+        "--duration", required_text(request, "ir-duration"),
         "--source", str(request.get("pffdtd-source") or "1"),
     ]
     processes = str(request.get("pffdtd-processes") or "").strip()
@@ -236,6 +417,28 @@ def build_pffdtd_prepare_command(request: dict[str, object], python: str) -> lis
             raise ValueError(f"material mapping must be NAME=FILE, got {text!r}")
         command.extend(("--material", text))
     return command
+
+
+def absolutize_pffdtd_paths(request: dict[str, object], *, preparing: bool) -> None:
+    if preparing:
+        output = resolve_va_path(required_text(request, "pffdtd-output"), must_exist=False)
+        request["pffdtd-output"] = str(output)
+        request["pffdtd-data-directory"] = str(output)
+    else:
+        data_directory = str(request.get("pffdtd-data-directory") or "").strip()
+        if not data_directory:
+            raise ValueError("Prepared job directory is required")
+        request["pffdtd-data-directory"] = str(resolve_va_path(data_directory))
+    repository = str(request.get("pffdtd-repository") or "").strip()
+    if repository:
+        request["pffdtd-repository"] = str(resolve_va_path(repository))
+    materials = str(request.get("pffdtd-materials-dir") or "").strip()
+    if materials:
+        request["pffdtd-materials-dir"] = str(resolve_va_path(materials))
+    model = str(request.get("pffdtd-model") or "").strip()
+    if model:
+        request["pffdtd-model"] = str(resolve_va_path(model, must_exist=not preparing))
+    request["pffdtd-bridge"] = str(VA_ROOT / "tools" / "pffdtd_bridge.py")
 
 
 class RenderJob:
@@ -500,7 +703,11 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json({"ready": False, "error": str(error)})
 
     def do_POST(self) -> None:
-        if urlparse(self.path).path != "/api/render":
+        route = urlparse(self.path).path
+        if route == "/api/browse":
+            self.handle_browse()
+            return
+        if route != "/api/render":
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         try:
@@ -514,22 +721,20 @@ class Handler(SimpleHTTPRequestHandler):
             audio = base64.b64decode(encoded, validate=True)
             if len(audio) < 12 or audio[:4] != b"RIFF" or audio[8:12] != b"WAVE":
                 raise ValueError("Please choose a PCM or float WAV file")
-            if request.get("wave-backend") == "pffdtd" and not request.get("pffdtd-python"):
+            use_pffdtd = (
+                request.get("mode") in {"wave", "hybrid"}
+                and request.get("wave-backend") == "pffdtd"
+            )
+            if use_pffdtd and not request.get("pffdtd-python"):
                 pffdtd_python = self.server.pffdtd_python  # type: ignore[attr-defined]
                 if not pffdtd_python:
                     raise ValueError("PFFDTD Python was not found; set VA_PFFDTD_PYTHON")
                 request["pffdtd-python"] = str(pffdtd_python)
             prepare_pffdtd = (
-                request.get("wave-backend") == "pffdtd"
+                use_pffdtd
                 and str(request.get("pffdtd-job-mode") or "existing") == "prepare"
             )
             if prepare_pffdtd:
-                output_dir = required_text(request, "pffdtd-output")
-                request["pffdtd-data-directory"] = output_dir
-                if request.get("pffdtd-fmax"):
-                    request["maximum-frequency"] = request["pffdtd-fmax"]
-                if request.get("pffdtd-duration"):
-                    request["ir-duration"] = request["pffdtd-duration"]
                 if str(request.get("pffdtd-execution") or "prepared") == "prepared":
                     raise ValueError(
                         "Preparing a job does not produce sim_outs.h5. "
@@ -544,18 +749,17 @@ class Handler(SimpleHTTPRequestHandler):
                     [float(request["receiver-x"]), float(request["receiver-y"]), float(request["receiver-z"])],
                     inspected["bounds"],  # type: ignore[arg-type]
                 )
-                placed_model = resolve_va_path(output_dir, must_exist=False) / "model_placed.json"
+                placed_model = resolve_va_path(required_text(request, "pffdtd-output"), must_exist=False) / "model_placed.json"
                 write_placed_pffdtd_model(
                     resolve_va_path(required_text(request, "pffdtd-model")),
                     placed_model,
                     source_xyz,
                     receiver_xyz,
                 )
-                try:
-                    request["pffdtd-model"] = str(placed_model.relative_to(VA_ROOT))
-                except ValueError:
-                    request["pffdtd-model"] = str(placed_model)
+                request["pffdtd-model"] = str(placed_model)
                 request["pffdtd-source"] = "1"
+            if use_pffdtd:
+                absolutize_pffdtd_paths(request, preparing=prepare_pffdtd)
             workdir = tempfile.TemporaryDirectory(prefix="va-synthesis-")
             try:
                 source = Path(workdir.name) / "input.wav"
@@ -590,6 +794,55 @@ class Handler(SimpleHTTPRequestHandler):
             self.server.jobs.add(job)  # type: ignore[attr-defined]
             self.log_message("render %s started", job.id[:8])
             self.send_json({"jobId": job.id})
+        except (ValueError, KeyError, json.JSONDecodeError) as error:
+            self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
+        except Exception as error:
+            self.send_json({"error": str(error)}, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def handle_browse(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            if length <= 0 or length > 65_536:
+                raise ValueError("Invalid browse request")
+            request = json.loads(self.rfile.read(length))
+            kind = str(request.get("kind") or "").strip()
+            if kind not in {"file", "directory"}:
+                raise ValueError("kind must be file or directory")
+            title = str(request.get("title") or "").strip() or (
+                "Select a folder" if kind == "directory" else "Select a file"
+            )
+            types = request.get("types") or []
+            if isinstance(types, str):
+                types = [part.strip() for part in types.split(",") if part.strip()]
+            if not isinstance(types, list):
+                raise ValueError("types must be a list of extensions")
+            types = [str(item).lstrip(".").strip() for item in types if str(item).strip()]
+            initial = browse_anchor(str(request.get("initial") or ""))
+            relative_raw = str(request.get("relativeTo") or "").strip()
+            relative_to = browse_anchor(relative_raw) if relative_raw else None
+            if relative_to is not None and relative_to.is_file():
+                relative_to = relative_to.parent
+            if as_bool(request.get("basename")) and relative_to is not None and relative_to.is_dir():
+                name = Path(str(request.get("initial") or "")).name
+                nested = relative_to / name if name else relative_to
+                initial = nested if nested.exists() else relative_to
+            if not BROWSE_LOCK.acquire(blocking=False):
+                self.send_json({"error": "A file picker is already open"}, HTTPStatus.CONFLICT)
+                return
+            try:
+                chosen = pick_native_path(kind=kind, title=title, initial=initial, types=types)
+            finally:
+                BROWSE_LOCK.release()
+            if chosen is None:
+                self.send_json({"path": None})
+                return
+            self.send_json({
+                "path": display_selected_path(
+                    chosen,
+                    basename=as_bool(request.get("basename")),
+                    relative_to=relative_to,
+                )
+            })
         except (ValueError, KeyError, json.JSONDecodeError) as error:
             self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
         except Exception as error:

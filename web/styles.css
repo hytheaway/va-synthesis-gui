@@ -14,6 +14,16 @@
 .pffdtd-material-heading div{display:flex;gap:8px;flex-wrap:wrap}
 .pffdtd-material-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
 .pffdtd-material-row label{margin:0}
+.pffdtd-materials-toolbar{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end}
+.pffdtd-materials-toolbar>div{display:flex;gap:8px;flex-wrap:wrap}
+.pffdtd-materials-toolbar .ghost{margin-left:0}
+.path-input{display:flex;gap:6px;align-items:stretch;margin-top:6px;min-width:0}
+.advanced-body .path-input input{margin-top:0;width:auto;flex:1;min-width:0}
+.path-browse{flex:none;width:38px;border:1px solid #33382f;background:#11130f;color:var(--accent);border-radius:6px;cursor:pointer;display:grid;place-items:center;padding:0}
+.path-browse:hover{border-color:var(--accent)}
+.path-browse:disabled{opacity:.45;cursor:wait}
+.path-browse svg{width:16px;height:16px;display:block}
+@media(max-width:760px){.pffdtd-materials-toolbar{grid-template-columns:1fr}}
 .room-geometry{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
 .room-map.has-model .room-geometry{display:block!important}
 .room-map.has-model .grid-lines{opacity:.18}

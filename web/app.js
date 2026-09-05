@@ -11,6 +11,9 @@ let rendering = false;
 let pffdtdVolume = null;
 let savedShoebox = null;
 let loadedModelPath = null;
+let savedGenericSliders = null;
+let savedPffdtdSliders = null;
+let usingPffdtdSliders = false;
 
 async function updateEngineHealth() {
   const state = $('.engine-state');
@@ -83,11 +86,70 @@ const ranges = [
 ranges.forEach(([id,out,format]) => $(`#${id}`).addEventListener('input', e => { $(`#${out}`).value = format(e.target.value); updateCost(); }));
 
 function number(name) { return Number(form.elements[name].value); }
-function pffdtdPrepareActive() {
+function pffdtdBackendActive() {
   const mode = $('input[name=mode]:checked').value;
   return (mode === 'wave' || mode === 'hybrid')
-    && $('select[name=wave-backend]').value === 'pffdtd'
-    && $('select[name=pffdtd-job-mode]').value === 'prepare';
+    && $('select[name=wave-backend]').value === 'pffdtd';
+}
+function pffdtdPrepareActive() {
+  return pffdtdBackendActive() && $('select[name=pffdtd-job-mode]').value === 'prepare';
+}
+
+const PFFDTD_SLIDER_DEFAULTS = {
+  'ir-duration': '3',
+  'maximum-frequency': '1400',
+  'points-per-wavelength': '10.5',
+};
+
+function snapshotSliders() {
+  const snapshot = {};
+  Object.keys(PFFDTD_SLIDER_DEFAULTS).forEach(name => { snapshot[name] = form.elements[name].value; });
+  return snapshot;
+}
+
+function refreshRangeOutputs() {
+  ranges.forEach(([id, out, format]) => { $(`#${out}`).value = format($(`#${id}`).value); });
+}
+
+function applySliders(snapshot) {
+  Object.entries(snapshot).forEach(([name, value]) => { form.elements[name].value = value; });
+  refreshRangeOutputs();
+}
+
+function updateSliderCopy() {
+  const pffdtd = pffdtdBackendActive();
+  const preparing = pffdtdPrepareActive();
+  $('#irDurationHint').textContent = preparing
+    ? 'PFFDTD simulation length and the IR used for convolution'
+    : pffdtd
+      ? 'Length of the IR read from the prepared job'
+      : 'Length of the modeled impulse response';
+  $('#maximumFrequencyHint').textContent = preparing
+    ? 'Sets the PFFDTD voxel grid bandwidth'
+    : pffdtd
+      ? 'Low-pass when extracting the IR; does not change the prepared grid'
+      : 'Wave solver valid bandwidth';
+  $('#ppwHint').textContent = preparing
+    ? 'PFFDTD voxels per wavelength at that frequency'
+    : 'Higher values improve spatial accuracy and cost';
+  const ppw = form.elements['points-per-wavelength'];
+  ppw.min = preparing ? 2 : 4;
+  ppw.step = preparing ? 0.1 : 0.5;
+}
+
+function syncWaveSliders() {
+  const pffdtd = pffdtdBackendActive();
+  if (pffdtd && !usingPffdtdSliders) {
+    savedGenericSliders = snapshotSliders();
+    applySliders(savedPffdtdSliders || PFFDTD_SLIDER_DEFAULTS);
+    usingPffdtdSliders = true;
+  } else if (!pffdtd && usingPffdtdSliders) {
+    savedPffdtdSliders = snapshotSliders();
+    applySliders(savedGenericSliders || {'ir-duration': '0.6', 'maximum-frequency': '800', 'points-per-wavelength': '6'});
+    savedGenericSliders = null;
+    usingPffdtdSliders = false;
+  }
+  updateSliderCopy();
 }
 function roomOrigin() {
   return pffdtdVolume ? pffdtdVolume.min : [0, 0, 0];
@@ -233,8 +295,8 @@ function updateCost() {
     const preparing = $('select[name=pffdtd-job-mode]').value === 'prepare';
     $('#costTitle').textContent = preparing ? 'PFFDTD prepare + simulation' : 'PFFDTD uses the prepared job';
     $('#costText').textContent = preparing
-      ? 'The loaded model sets the room size. Source and listener in Room & placement are written into the new PFFDTD job, then voxelized and simulated.'
-      : 'Runtime is set by the job directory (grid and duration), then convolution with your WAV. The shoebox size sliders do not change the PFFDTD mesh.';
+      ? 'The duration, maximum frequency, and points-per-wavelength sliders set the PFFDTD job. Source and listener in Room & placement are written into that job, then voxelized and simulated.'
+      : 'Runtime is set by the job directory (grid and duration). Response duration and maximum frequency only control how much of that IR is extracted. The shoebox size sliders do not change the PFFDTD mesh.';
     return;
   }
   const cell = 343 / (number('maximum-frequency') * number('points-per-wavelength'));
@@ -396,11 +458,14 @@ async function loadPffdtdModel() {
 }
 
 function updatePffdtdFields() {
+  const mode = $('input[name=mode]:checked').value;
   const pffdtd = $('select[name=wave-backend]').value === 'pffdtd';
-  $$('.pffdtd-fields').forEach(el => { el.hidden = !pffdtd; });
   const preparing = pffdtdPrepareActive();
+  $$('.pffdtd-fields').forEach(el => { el.hidden = !pffdtd; });
   $$('.pffdtd-prepare').forEach(el => { el.hidden = !preparing; });
   $$('.pffdtd-existing').forEach(el => { el.hidden = !pffdtd || preparing; });
+  $('#ppwParam').hidden = mode === 'geometrical' || (pffdtd && !preparing);
+  syncWaveSliders();
   loadPffdtdModel();
   updateCost();
 }
@@ -436,6 +501,66 @@ function collectPffdtdMaterials() {
   }).filter(Boolean);
 }
 
+const PATH_BROWSE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.38l1.5 1.5H18.5A1.75 1.75 0 0 1 20.25 8.25v9A1.75 1.75 0 0 1 18.5 19H5.25A1.75 1.75 0 0 1 3.5 17.25Z"/></svg>';
+
+function makePathBrowseButton({kind, title, types, basename, relativeTo, label}) {
+  const button = document.createElement('button');
+  button.className = 'path-browse';
+  button.type = 'button';
+  button.dataset.kind = kind;
+  button.dataset.title = title;
+  if (types) button.dataset.types = types;
+  if (basename) button.dataset.basename = 'true';
+  if (relativeTo) button.dataset.relativeTo = relativeTo;
+  button.setAttribute('aria-label', label);
+  button.innerHTML = PATH_BROWSE_ICON;
+  return button;
+}
+
+async function browseForInput(input, spec) {
+  let initial = spec.initial || input.value.trim();
+  const relativeTo = spec.relativeTo ? ($(spec.relativeTo)?.value.trim() || '') : '';
+  if (spec.basename === 'true' && relativeTo && initial && !/[\\/]/.test(initial)) {
+    initial = `${relativeTo.replace(/[/\\]+$/, '')}/${initial}`;
+  }
+  const response = await fetch('/api/browse', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      kind: spec.kind,
+      title: spec.title || '',
+      initial,
+      types: spec.types ? spec.types.split(',').map(item => item.trim()).filter(Boolean) : [],
+      basename: spec.basename === 'true',
+      relativeTo,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || 'Could not open the file picker');
+  if (!payload.path) return;
+  input.value = payload.path;
+  input.dispatchEvent(new Event('input', {bubbles: true}));
+  input.dispatchEvent(new Event('change', {bubbles: true}));
+}
+
+form.addEventListener('click', async event => {
+  const button = event.target.closest('.path-browse');
+  if (!button || !form.contains(button)) return;
+  const wrap = button.closest('.path-input');
+  const input = wrap && wrap.querySelector('input');
+  if (!input) return;
+  event.preventDefault();
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    await browseForInput(input, button.dataset);
+  } catch (error) {
+    setStatus(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function addPffdtdMaterialRow(name = '', file = '') {
   const row = document.createElement('div');
   row.className = 'pffdtd-material-row';
@@ -448,11 +573,24 @@ function addPffdtdMaterialRow(name = '', file = '') {
   nameLabel.append(nameInput);
   const fileLabel = document.createElement('label');
   fileLabel.textContent = 'HDF5 file';
+  const fileWrap = document.createElement('span');
+  fileWrap.className = 'path-input';
   const fileInput = document.createElement('input');
   fileInput.setAttribute('data-mat-file', '');
   fileInput.type = 'text';
   fileInput.value = file;
-  fileLabel.append(fileInput);
+  fileWrap.append(
+    fileInput,
+    makePathBrowseButton({
+      kind: 'file',
+      title: 'HDF5 material file',
+      types: 'h5,hdf5',
+      basename: true,
+      relativeTo: 'input[name=pffdtd-materials-dir]',
+      label: 'Browse for HDF5 file',
+    }),
+  );
+  fileLabel.append(fileWrap);
   const remove = document.createElement('button');
   remove.className = 'ghost small';
   remove.type = 'button';
@@ -596,7 +734,11 @@ async function followJob(jobId) {
 
 form.addEventListener('submit', async event => {
   event.preventDefault();
-  if (!audioFile || rendering) return;
+  if (rendering) return;
+  if (!audioFile) {
+    setStatus('Choose a WAV file first.');
+    return;
+  }
   const origin = roomOrigin();
   const extent = roomExtent();
   for (const prefix of ['source', 'receiver']) {

@@ -36,7 +36,7 @@
         <button id="replaceButton" class="ghost small" type="button" hidden>Replace</button>
       </div>
 
-      <form id="controls">
+      <form id="controls" novalidate>
         <div class="section-heading"><span>01</span><div><h2>Propagation model</h2><p>Choose how energy travels from source to listener.</p></div></div>
         <div class="mode-grid" role="radiogroup" aria-label="Propagation model">
           <label class="mode-card selected">
@@ -72,19 +72,19 @@
           </div>
           <div class="room-fields">
             <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Room</legend><div class="field-row triple">
-              <label>Width<input name="room-x" type="number" min="1" max="30" step="0.1" value="5"></label>
-              <label>Depth<input name="room-y" type="number" min="1" max="30" step="0.1" value="4"></label>
-              <label>Height<input name="room-z" type="number" min="1" max="12" step="0.1" value="3"></label>
+              <label>Width<input name="room-x" type="number" min="1" max="30" step="any" value="5"></label>
+              <label>Depth<input name="room-y" type="number" min="1" max="30" step="any" value="4"></label>
+              <label>Height<input name="room-z" type="number" min="1" max="12" step="any" value="3"></label>
             </div><p id="roomModelHint" class="room-model-hint" hidden>Dimensions are locked to the loaded PFFDTD model. Drag source and listener to set the job positions.<br>When in Hybrid mode, geometrical acoustics are modelled based on these room dimensions (shoebox), but not the room geometry.</p></fieldset>
             <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Source position</legend><div class="field-row triple">
-              <label>X<input name="source-x" type="number" min="0" step="0.1" value="1.2"></label>
-              <label>Y<input name="source-y" type="number" min="0" step="0.1" value="1.5"></label>
-              <label>Z<input name="source-z" type="number" min="0" step="0.1" value="1.4"></label>
+              <label>X<input name="source-x" type="number" min="0" step="any" value="1.2"></label>
+              <label>Y<input name="source-y" type="number" min="0" step="any" value="1.5"></label>
+              <label>Z<input name="source-z" type="number" min="0" step="any" value="1.4"></label>
             </div></fieldset>
             <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Listener position</legend><div class="field-row triple">
-              <label>X<input name="receiver-x" type="number" min="0" step="0.1" value="3.8"></label>
-              <label>Y<input name="receiver-y" type="number" min="0" step="0.1" value="2.5"></label>
-              <label>Z<input name="receiver-z" type="number" min="0" step="0.1" value="1.4"></label>
+              <label>X<input name="receiver-x" type="number" min="0" step="any" value="3.8"></label>
+              <label>Y<input name="receiver-y" type="number" min="0" step="any" value="2.5"></label>
+              <label>Z<input name="receiver-z" type="number" min="0" step="any" value="1.4"></label>
             </div></fieldset>
           </div>
         </div>
@@ -92,7 +92,7 @@
         <div class="section-heading"><span>03</span><div><h2>Acoustic parameters</h2><p id="parameterHint">Direct-path controls exposed by the geometrical solver.</p></div></div>
         <div class="panel parameter-panel">
           <div class="param common-param">
-            <div><label for="irDuration">Response duration</label><small>Length of the modeled impulse response</small></div>
+            <div><label for="irDuration">Response duration</label><small id="irDurationHint">Length of the modeled impulse response</small></div>
             <output id="irDurationOutput">0.60 s</output>
             <input id="irDuration" name="ir-duration" type="range" min="0.05" max="3" step="0.05" value="0.6">
           </div>
@@ -125,12 +125,12 @@
             </div>
           </details>
           <div class="param wave-param" hidden>
-            <div><label for="maximumFrequency">Maximum frequency</label><small>Wave solver valid bandwidth</small></div>
+            <div><label for="maximumFrequency">Maximum frequency</label><small id="maximumFrequencyHint">Wave solver valid bandwidth</small></div>
             <output id="maximumFrequencyOutput">800 Hz</output>
             <input id="maximumFrequency" name="maximum-frequency" type="range" min="100" max="2000" step="50" value="800">
           </div>
-          <div class="param wave-param" hidden>
-            <div><label for="ppw">Points per wavelength</label><small>Higher values improve spatial accuracy and cost</small></div>
+          <div class="param wave-param" id="ppwParam" hidden>
+            <div><label for="ppw">Points per wavelength</label><small id="ppwHint">Higher values improve spatial accuracy and cost</small></div>
             <output id="ppwOutput">6.0</output>
             <input id="ppw" name="points-per-wavelength" type="range" min="4" max="12" step="0.5" value="6">
           </div>
@@ -153,7 +153,7 @@
                   <option value="prepare" selected>Prepare from model, then simulate</option>
                   <option value="existing">Use existing job directory</option>
                 </select></label>
-                <label>Python executable (Leave blank for current python env)<input name="pffdtd-python" type="text" placeholder="VA_PFFDTD_PYTHON or python3 on PATH"></label>
+                <label class="path-field">Python executable (Leave blank for current python env)<span class="path-input"><input name="pffdtd-python" type="text" placeholder="VA_PFFDTD_PYTHON or python3 on PATH"><button class="path-browse" type="button" data-kind="file" data-title="Python executable" aria-label="Browse for Python executable"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.38l1.5 1.5H18.5A1.75 1.75 0 0 1 20.25 8.25v9A1.75 1.75 0 0 1 18.5 19H5.25A1.75 1.75 0 0 1 3.5 17.25Z"/></svg></button></span></label>
                 <label>Execution<select name="pffdtd-execution">
                   <option value="python" selected>Run Python CPU</option>
                   <option value="prepared">Use existing sim_outs.h5</option>
@@ -162,15 +162,12 @@
                 </select></label>
                 <label class="check"><input name="air-absorption" type="checkbox" style="margin-top: 0.3em; width: auto;"> Apply modal air absorption</label>
                 <div class="pffdtd-existing" hidden>
-                  <label>Prepared job directory<input name="pffdtd-data-directory" type="text" placeholder="jobs/ctk-church"></label>
+                  <label class="path-field">Prepared job directory<span class="path-input"><input name="pffdtd-data-directory" type="text" placeholder="jobs/ctk-church"><button class="path-browse" type="button" data-kind="directory" data-title="Prepared job directory" aria-label="Browse for prepared job directory"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.38l1.5 1.5H18.5A1.75 1.75 0 0 1 20.25 8.25v9A1.75 1.75 0 0 1 18.5 19H5.25A1.75 1.75 0 0 1 3.5 17.25Z"/></svg></button></span></label>
                 </div>
                 <div class="pffdtd-prepare">
-                  <label>Repository<input name="pffdtd-repository" type="text" value="submodules/pffdtd"></label>
-                  <label>Model JSON<input name="pffdtd-model" type="text" value="submodules/pffdtd/data/models/CTK_Church/model_export.json"></label>
-                  <label>Output directory<input name="pffdtd-output" type="text" value="jobs/ctk-church"></label>
-                  <label>Maximum frequency (Hz)<input name="pffdtd-fmax" type="number" min="1" step="1" value="1400"></label>
-                  <label>Points per wavelength<input name="pffdtd-ppw" type="number" min="2" step="0.1" value="10.5"></label>
-                  <label>Duration (s)<input name="pffdtd-duration" type="number" min="0.01" step="0.05" value="3"></label>
+                  <label class="path-field">Repository<span class="path-input"><input name="pffdtd-repository" type="text" value="submodules/pffdtd"><button class="path-browse" type="button" data-kind="directory" data-title="PFFDTD repository" aria-label="Browse for PFFDTD repository"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.38l1.5 1.5H18.5A1.75 1.75 0 0 1 20.25 8.25v9A1.75 1.75 0 0 1 18.5 19H5.25A1.75 1.75 0 0 1 3.5 17.25Z"/></svg></button></span></label>
+                  <label class="path-field">Model JSON<span class="path-input"><input name="pffdtd-model" type="text" value="submodules/pffdtd/data/models/CTK_Church/model_export.json"><button class="path-browse" type="button" data-kind="file" data-title="Model JSON" data-types="json" aria-label="Browse for model JSON"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.38l1.5 1.5H18.5A1.75 1.75 0 0 1 20.25 8.25v9A1.75 1.75 0 0 1 18.5 19H5.25A1.75 1.75 0 0 1 3.5 17.25Z"/></svg></button></span></label>
+                  <label class="path-field">Output directory<span class="path-input"><input name="pffdtd-output" type="text" value="jobs/ctk-church"><button class="path-browse" type="button" data-kind="directory" data-title="Output directory" aria-label="Browse for output directory"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.38l1.5 1.5H18.5A1.75 1.75 0 0 1 20.25 8.25v9A1.75 1.75 0 0 1 18.5 19H5.25A1.75 1.75 0 0 1 3.5 17.25Z"/></svg></button></span></label>
                   <label>Voxelizer processes (keep at 1 unless on Linux)<input name="pffdtd-processes" type="number" min="1" step="1" value="1"></label>
                   <label class="check" style="margin-top: 1.2em"><input name="pffdtd-differentiate-source" type="checkbox" checked style="width:auto"> Differentiate source</label>
                   <label class="check"><input name="pffdtd-fcc" type="checkbox" style="margin-top: 0.3em; width: auto;"> FCC grid</label>
@@ -179,11 +176,13 @@
                       <strong>Surface materials</strong>
                     </div>
                     <p class="note">Native PFFDTD models need NAME=FILE mappings. va-synthesis scene dumps can omit these and fit from va_materials. Paths are relative to the va-synthesis submodule unless they are absolute.</p>
-                    <div>
-                      <label style="float: left; width: 66%">Materials directory<input name="pffdtd-materials-dir" type="text" value="submodules/pffdtd/data/materials"></label>
-                      <button id="loadPffdtdSurfaces" class="ghost small" type="button" style="margin-top: 1.2em; margin-left: 1em; float:none; width:auto;">Read model surfaces</button>
-                      <button id="addPffdtdMaterial" class="ghost small" type="button" style="margin-top: 1.2em; float: right; width: auto;">Add mapping</button>
+                    <div class="pffdtd-materials-toolbar">
+                      <label class="path-field">Materials directory<span class="path-input"><input name="pffdtd-materials-dir" type="text" value="submodules/pffdtd/data/materials"><button class="path-browse" type="button" data-kind="directory" data-title="Materials directory" aria-label="Browse for materials directory"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.38l1.5 1.5H18.5A1.75 1.75 0 0 1 20.25 8.25v9A1.75 1.75 0 0 1 18.5 19H5.25A1.75 1.75 0 0 1 3.5 17.25Z"/></svg></button></span></label>
+                      <div>
+                      <button id="loadPffdtdSurfaces" class="ghost small" type="button">Read model surfaces</button>
+                      <button id="addPffdtdMaterial" class="ghost small" type="button">Add mapping</button>
                       </div>
+                    </div>
                     <div id="pffdtdMaterialRows"></div>
                   </div>
                 </div>
@@ -201,7 +200,7 @@
       </form>
 
       <section id="resultPanel" class="result-panel" hidden>
-        <div><p class="eyebrow">RENDER COMPLETE</p><h2>Your space is ready.</h2><p id="resultMessage"></p></div>
+        <div><p class="eyebrow">RENDER COMPLETE</p><p id="resultMessage"></p></div>
         <div class="result-actions"><audio id="resultAudio" controls></audio><a id="downloadButton" class="download-button" download>Download WAV <span>↓</span></a></div>
       </section>
     </section>
