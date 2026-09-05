@@ -14,6 +14,10 @@
 .pffdtd-material-heading div{display:flex;gap:8px;flex-wrap:wrap}
 .pffdtd-material-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end}
 .pffdtd-material-row label{margin:0}
-.pffdtd-material-row button{margin:0 0 2px;white-space:nowrap}
-@media(max-width:760px){.pffdtd-prepare,.pffdtd-existing{display:contents}.pffdtd-material-row{grid-template-columns:1fr}}
+.room-geometry{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible}
+.room-map.has-model .room-geometry{display:block!important}
+.room-map.has-model .grid-lines{opacity:.18}
+.room-fields input.locked{opacity:.7;cursor:not-allowed;color:var(--muted)}
+.room-model-hint{grid-column:1/-1;margin:10px 0 0;color:var(--muted);font-size:11px;line-height:1.45}
+.room-panel.model-locked .room-fields fieldset:first-child legend:after{content:" · from model";color:var(--accent);font-weight:400}
 

@@ -60,6 +60,7 @@
         <div class="panel room-panel">
           <div class="room-map" id="roomMap">
             <div class="grid-lines"></div>
+            <svg id="roomGeometry" class="room-geometry" hidden aria-hidden="true" preserveAspectRatio="none"></svg>
             <div class="view-switch" role="group" aria-label="Room diagram view">
               <button type="button" class="active" data-view="top" aria-pressed="true">Top</button>
               <button type="button" data-view="side" aria-pressed="false">Side</button>
@@ -74,7 +75,7 @@
               <label>Width<input name="room-x" type="number" min="1" max="30" step="0.1" value="5"></label>
               <label>Depth<input name="room-y" type="number" min="1" max="30" step="0.1" value="4"></label>
               <label>Height<input name="room-z" type="number" min="1" max="12" step="0.1" value="3"></label>
-            </div></fieldset>
+            </div><p id="roomModelHint" class="room-model-hint" hidden>Dimensions are locked to the loaded PFFDTD model. Drag source and listener to set the job positions.</p></fieldset>
             <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Source position</legend><div class="field-row triple">
               <label>X<input name="source-x" type="number" min="0" step="0.1" value="1.2"></label>
               <label>Y<input name="source-y" type="number" min="0" step="0.1" value="1.5"></label>
@@ -170,7 +171,6 @@
                   <label>Maximum frequency (Hz)<input name="pffdtd-fmax" type="number" min="1" step="1" value="1400"></label>
                   <label>Points per wavelength<input name="pffdtd-ppw" type="number" min="2" step="0.1" value="10.5"></label>
                   <label>Duration (s)<input name="pffdtd-duration" type="number" min="0.01" step="0.05" value="3"></label>
-                  <label>Source index<input name="pffdtd-source" type="number" min="1" step="1" value="1"></label>
                   <label>Voxelizer processes (keep at 1 unless on Linux)<input name="pffdtd-processes" type="number" min="1" step="1" value="1"></label>
                   <label class="check" style="margin-top: 1.2em"><input name="pffdtd-differentiate-source" type="checkbox" checked style="width:auto"> Differentiate source</label>
                   <label class="check"><input name="pffdtd-fcc" type="checkbox" style="margin-top: 0.3em; width: auto;"> FCC grid</label>

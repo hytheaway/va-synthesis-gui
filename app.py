@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import math
 import os
 import threading
 import time
@@ -62,12 +63,30 @@ def find_pffdtd_python() -> Path | None:
     return None
 
 
-def inspect_pffdtd_model(raw_path: str) -> dict[str, object]:
+def resolve_va_path(raw_path: str, *, must_exist: bool = True) -> Path:
     path = Path(raw_path).expanduser()
     if not path.is_absolute():
-        path = (VA_ROOT / path).resolve()
-    else:
-        path = path.resolve()
+        path = VA_ROOT / path
+    path = path.resolve()
+    if must_exist and not path.exists():
+        raise ValueError(f"Path not found: {path}")
+    return path
+
+
+def _xyz(value: object) -> list[float] | None:
+    if not isinstance(value, (list, tuple)) or len(value) < 3:
+        return None
+    try:
+        point = [float(value[0]), float(value[1]), float(value[2])]
+    except (TypeError, ValueError):
+        return None
+    if not all(map(math.isfinite, point)):
+        return None
+    return point
+
+
+def inspect_pffdtd_model(raw_path: str) -> dict[str, object]:
+    path = resolve_va_path(raw_path)
     if not path.is_file():
         raise ValueError(f"Model not found: {path}")
     with path.open(encoding="utf-8") as handle:
@@ -75,11 +94,102 @@ def inspect_pffdtd_model(raw_path: str) -> dict[str, object]:
     mats = model.get("mats_hash")
     if not isinstance(mats, dict):
         raise ValueError("model JSON is missing mats_hash")
+
+    bmin = [math.inf, math.inf, math.inf]
+    bmax = [-math.inf, -math.inf, -math.inf]
+    layers: list[dict[str, object]] = []
+    triangle_count = 0
+    max_triangles = 12_000
+    for name, material in mats.items():
+        if not isinstance(material, dict):
+            continue
+        points = material.get("pts") or []
+        triangles = material.get("tris") or []
+        raw_color = material.get("color") or [128, 128, 128]
+        try:
+            channels = [float(raw_color[0]), float(raw_color[1]), float(raw_color[2])]
+        except (TypeError, ValueError, IndexError):
+            channels = [128.0, 128.0, 128.0]
+        if max(channels) <= 1.0:
+            color = [int(round(channel * 255)) for channel in channels]
+        else:
+            color = [int(max(0, min(255, round(channel)))) for channel in channels]
+        top: list[list[list[float]]] = []
+        side: list[list[list[float]]] = []
+        for triangle in triangles:
+            if triangle_count >= max_triangles:
+                break
+            if not isinstance(triangle, (list, tuple)) or len(triangle) < 3:
+                continue
+            try:
+                corners = [points[int(triangle[0])], points[int(triangle[1])], points[int(triangle[2])]]
+            except (IndexError, TypeError, ValueError):
+                continue
+            world = [_xyz(corner) for corner in corners]
+            if any(point is None for point in world):
+                continue
+            for point in world:
+                for axis in range(3):
+                    bmin[axis] = min(bmin[axis], point[axis])
+                    bmax[axis] = max(bmax[axis], point[axis])
+            top.append([[round(point[0], 3), round(point[1], 3)] for point in world])
+            side.append([[round(point[0], 3), round(point[2], 3)] for point in world])
+            triangle_count += 1
+        if top:
+            layers.append({"name": name, "color": color, "top": top, "side": side})
+
+    if not math.isfinite(bmin[0]):
+        raise ValueError("model JSON does not contain mesh points")
+
+    def named_points(key: str) -> list[dict[str, object]]:
+        items = []
+        for entry in model.get(key) or []:
+            if not isinstance(entry, dict):
+                continue
+            point = _xyz(entry.get("xyz"))
+            if point is None:
+                continue
+            items.append({"xyz": point, "name": str(entry.get("name") or "")})
+        return items
+
     return {
         "path": str(path),
         "surfaces": sorted(name for name in mats if name != "_RIGID"),
         "hasVaMaterials": bool(model.get("va_materials")),
+        "bounds": {"min": bmin, "max": bmax},
+        "size": {"x": bmax[0] - bmin[0], "y": bmax[1] - bmin[1], "z": bmax[2] - bmin[2]},
+        "sources": named_points("sources"),
+        "receivers": named_points("receivers"),
+        "layers": layers,
     }
+
+
+def inset_point(point: list[float], bounds: dict[str, list[float]], margin: float = 1e-3) -> list[float]:
+    lo, hi = bounds["min"], bounds["max"]
+    placed = []
+    for axis in range(3):
+        low = lo[axis] + margin
+        high = hi[axis] - margin
+        if high <= low:
+            placed.append(0.5 * (lo[axis] + hi[axis]))
+        else:
+            placed.append(min(max(point[axis], low), high))
+    return placed
+
+
+def write_placed_pffdtd_model(
+    source_model: Path,
+    destination: Path,
+    source_xyz: list[float],
+    receiver_xyz: list[float],
+) -> None:
+    with source_model.open(encoding="utf-8") as handle:
+        model = json.load(handle)
+    model["sources"] = [{"xyz": source_xyz, "name": "S1"}]
+    model["receivers"] = [{"xyz": receiver_xyz, "name": "R1"}]
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("w", encoding="utf-8") as handle:
+        json.dump(model, handle)
 
 
 def required_text(request: dict[str, object], key: str) -> str:
@@ -425,6 +535,27 @@ class Handler(SimpleHTTPRequestHandler):
                         "Preparing a job does not produce sim_outs.h5. "
                         "Choose Python CPU or a native CPU execution."
                     )
+                inspected = inspect_pffdtd_model(required_text(request, "pffdtd-model"))
+                source_xyz = inset_point(
+                    [float(request["source-x"]), float(request["source-y"]), float(request["source-z"])],
+                    inspected["bounds"],  # type: ignore[arg-type]
+                )
+                receiver_xyz = inset_point(
+                    [float(request["receiver-x"]), float(request["receiver-y"]), float(request["receiver-z"])],
+                    inspected["bounds"],  # type: ignore[arg-type]
+                )
+                placed_model = resolve_va_path(output_dir, must_exist=False) / "model_placed.json"
+                write_placed_pffdtd_model(
+                    resolve_va_path(required_text(request, "pffdtd-model")),
+                    placed_model,
+                    source_xyz,
+                    receiver_xyz,
+                )
+                try:
+                    request["pffdtd-model"] = str(placed_model.relative_to(VA_ROOT))
+                except ValueError:
+                    request["pffdtd-model"] = str(placed_model)
+                request["pffdtd-source"] = "1"
             workdir = tempfile.TemporaryDirectory(prefix="va-synthesis-")
             try:
                 source = Path(workdir.name) / "input.wav"
