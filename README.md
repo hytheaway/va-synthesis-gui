@@ -2,6 +2,8 @@
 
 A browser workbench for the [`va-synthesis`](https://github.com/hytheaway/va-synthesis) virtual acoustics engine. Drop in a WAV file, place a source and listener in a room, choose a propagation model, adjust its parameters, and download the rendered result.
 
+<img width="2033" height="1176" alt="va-synthesis-gui-homepage" src="https://github.com/user-attachments/assets/5b7735b4-10e0-4d08-98dd-a90dce444231" />
+
 ## Initialize, Build, and Run
 
 Requirements: CMake 3.22+, a C++20 compiler, and Python 3.10+.
