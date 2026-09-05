@@ -332,7 +332,7 @@ int main(int argc, char** argv) {
                 << "{\"ready\":true,\"components\":["
                 << "{\"name\":\"Core renderer\",\"status\":\"ready\","
                    "\"detail\":\"Audio rendering and convolution are operational\"},"
-                << "{\"name\":\"Reference FDTD\",\"status\":\"ready\","
+                << "{\"name\":\"Minimal FDTD\",\"status\":\"ready\","
                    "\"detail\":\"Built-in Cartesian wave solver is operational\"},"
                 << "{\"name\":\"Geometrical solver\",\"status\":\"ready\","
                    "\"detail\":\"Shoebox geometry with BRT SDN or specular ray-traced reflections is operational\"},"
@@ -349,15 +349,15 @@ int main(int argc, char** argv) {
                 << (pffdtd ? "Adapter is built; Python environment and prepared job are checked at render time"
                            : "Nested submodule was not present when this renderer was built")
                 << "\"},"
-                << "{\"name\":\"Binaural HRTF\",\"status\":\""
+                << "{\"name\":\"Binaural\",\"status\":\""
                 << (va::binaural::sofa_reader_available() ? "ready" : "unavailable")
                 << "\",\"detail\":\""
                 << (va::binaural::sofa_reader_available()
-                        ? "SOFA HRTF convolution is applied after the room renderer when --hrtf-sofa is set"
+                        ? "HRTF convolution is applied after the room renderer if SOFA file is provided"
                         : "libmysofa was not present when this renderer was built")
                 << "\"},"
                 << "{\"name\":\"Hybrid solver\",\"status\":\"ready\","
-                   "\"detail\":\"Operational with reference FDTD and the selected geometrical room model\"}]}\n";
+                   "\"detail\":\"Operational\"}]}\n";
             return 0;
         }
         const auto input_path = get(args, "input");
