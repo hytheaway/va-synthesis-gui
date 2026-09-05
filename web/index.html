@@ -144,16 +144,16 @@
             <input id="crossover" name="crossover" type="range" min="80" max="1500" step="10" value="500">
           </div>
           <details class="advanced wave-param" hidden>
-            <summary>PFFDTD backend <span>Advanced</span></summary>
+            <summary>FDTD backend <span>Advanced</span></summary>
             <div class="advanced-body">
-              <label>Wave implementation<select name="wave-backend"><option value="reference">Built-in reference FDTD</option><option value="pffdtd">PFFDTD prepared job</option></select></label>
+              <label>FDTD method<select name="wave-backend"><option value="reference">Built-in basic FDTD</option><option value="pffdtd">PFFDTD</option></select></label>
               <div class="pffdtd-fields" hidden>
                 <label>Prepared job directory<input name="pffdtd-data-directory" type="text" placeholder="/path/to/job"></label>
-                <label>Python executable<input name="pffdtd-python" type="text" placeholder="VA_PFFDTD_PYTHON or python3 on PATH"></label>
+                <label>Python executable (Leave blank for current python env)<input name="pffdtd-python" type="text" placeholder="VA_PFFDTD_PYTHON or python3 on PATH"></label>
                 <label>Execution<select name="pffdtd-execution"><option value="prepared">Use existing sim_outs.h5</option><option value="python">Run Python CPU</option><option value="native-double">Native CPU double</option><option value="native-single">Native CPU single</option></select></label>
-                <label class="check"><input name="air-absorption" type="checkbox"> Apply modal air absorption</label>
+                <label class="check"><input name="air-absorption" type="checkbox" style="width: auto;"> Apply modal air absorption</label>
               </div>
-              <p class="note">PFFDTD requires the recursive submodule, its environment, and a job prepared for these source/receiver counts.</p>
+              <p class="note">- Built-in FDTD is a minimal implementation.<br>- PFFDTD requires the PFFDTD submodule, an enabled virtual environment with all the PFFDTD dependencies, and a "job" prepared for these source/receiver counts. Refer to the docs for more information.</p>
             </div>
           </details>
           <div class="toggle-row"><div><strong>Keep reverberation tail</strong><small>Allow output to extend past the dry file</small></div><label class="switch"><input name="reverb-tail" type="checkbox" checked><i></i></label></div>
