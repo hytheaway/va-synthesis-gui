@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(va_synthesis_gui VERSION 0.1.0 LANGUAGES CXX)
+project(va_synthesis_gui VERSION 0.1.0 LANGUAGES C CXX)
 
 # The upstream integrations are optional.  The adapters and reference solvers
 # still compile when their nested submodules have not been initialized.

@@ -140,6 +140,20 @@ def resolve_va_path(raw_path: str, *, must_exist: bool = True) -> Path:
     return path
 
 
+def resolve_hrtf_sofa_path(raw_path: str) -> Path:
+    path = Path(raw_path).expanduser()
+    if path.is_absolute():
+        resolved = path.resolve()
+        if not resolved.is_file():
+            raise ValueError(f"HRTF SOFA file not found: {resolved}")
+        return resolved
+    candidates = [(base / path).resolve() for base in (VA_ROOT, ROOT)]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise ValueError(f"HRTF SOFA file not found: {candidates[0]}")
+
+
 def browse_anchor(raw_path: str) -> Path:
     text = (raw_path or "").strip()
     if not text:
@@ -191,6 +205,8 @@ def pick_with_osascript(*, kind: str, title: str, initial: Path, types: list[str
             f"{location_clause})"
         )
     else:
+        # AppleScript "of type" takes UTIs, not extensions. Unknown values
+        # (including "sofa") grey out every file in the dialog.
         apple_types: list[str] = []
         for ext in types:
             if ext.lower() == "json":
@@ -760,6 +776,9 @@ class Handler(SimpleHTTPRequestHandler):
                 request["pffdtd-source"] = "1"
             if use_pffdtd:
                 absolutize_pffdtd_paths(request, preparing=prepare_pffdtd)
+            sofa = str(request.get("hrtf-sofa") or "").strip()
+            if sofa:
+                request["hrtf-sofa"] = str(resolve_hrtf_sofa_path(sofa))
             workdir = tempfile.TemporaryDirectory(prefix="va-synthesis-")
             try:
                 source = Path(workdir.name) / "input.wav"

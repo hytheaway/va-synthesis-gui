@@ -1,3 +1,4 @@
+#include "va/binaural/hrtf_renderer.hpp"
 #include "va/core/engine.hpp"
 #include "va/geometrical/brt_geometrical_solver.hpp"
 #include "va/hybrid/hybrid_solver.hpp"
@@ -19,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 namespace {
 
@@ -142,29 +144,45 @@ WavAudio read_wav(const std::filesystem::path& path) {
     return {static_cast<double>(sample_rate), std::move(mono)};
 }
 
-void write_wav(const std::filesystem::path& path, const va::AudioBuffer& samples,
+void write_wav(const std::filesystem::path& path, const std::vector<va::AudioBuffer>& channels,
                double sample_rate, bool normalize) {
-    if (samples.size() > (std::numeric_limits<std::uint32_t>::max() - 44U) / 3U) {
+    if (channels.empty() || channels.front().empty()) {
+        throw std::runtime_error("rendered WAV has no samples");
+    }
+    const auto frames = channels.front().size();
+    const auto channel_count = channels.size();
+    for (const auto& channel : channels) {
+        if (channel.size() != frames) throw std::runtime_error("stereo WAV channels must match");
+    }
+    if (channel_count > 2) throw std::runtime_error("WAV writer supports mono or stereo");
+    if (frames > (std::numeric_limits<std::uint32_t>::max() - 44U) / (3U * channel_count)) {
         throw std::length_error("rendered WAV is too large");
     }
     double scale = 1.0;
     if (normalize) {
         double peak = 0.0;
-        for (const auto sample : samples) peak = std::max(peak, std::abs(static_cast<double>(sample)));
+        for (const auto& channel : channels) {
+            for (const auto sample : channel) peak = std::max(peak, std::abs(static_cast<double>(sample)));
+        }
         if (peak > 0.0) scale = 0.98 / peak;
     }
     std::ofstream output(path, std::ios::binary);
     if (!output) throw std::runtime_error("could not create output WAV file");
-    const auto data_size = static_cast<std::uint32_t>(samples.size() * 3U);
+    const auto block_align = static_cast<std::uint16_t>(3U * channel_count);
+    const auto data_size = static_cast<std::uint32_t>(frames * block_align);
     output.write("RIFF", 4); write_u32(output, 36U + data_size); output.write("WAVE", 4);
-    output.write("fmt ", 4); write_u32(output, 16); write_u16(output, 1); write_u16(output, 1);
+    output.write("fmt ", 4); write_u32(output, 16); write_u16(output, 1);
+    write_u16(output, static_cast<std::uint16_t>(channel_count));
     const auto rate = static_cast<std::uint32_t>(std::llround(sample_rate));
-    write_u32(output, rate); write_u32(output, rate * 3U); write_u16(output, 3); write_u16(output, 24);
+    write_u32(output, rate); write_u32(output, rate * block_align); write_u16(output, block_align);
+    write_u16(output, 24);
     output.write("data", 4); write_u32(output, data_size);
-    for (const auto value : samples) {
-        const auto clipped = std::clamp(static_cast<double>(value) * scale, -1.0, 1.0);
-        const auto pcm = static_cast<std::int32_t>(std::llround(clipped * 8388607.0));
-        write_pcm24(output, pcm);
+    for (std::size_t frame = 0; frame < frames; ++frame) {
+        for (const auto& channel : channels) {
+            const auto clipped = std::clamp(static_cast<double>(channel[frame]) * scale, -1.0, 1.0);
+            const auto pcm = static_cast<std::int32_t>(std::llround(clipped * 8388607.0));
+            write_pcm24(output, pcm);
+        }
     }
 }
 
@@ -331,6 +349,13 @@ int main(int argc, char** argv) {
                 << (pffdtd ? "Adapter is built; Python environment and prepared job are checked at render time"
                            : "Nested submodule was not present when this renderer was built")
                 << "\"},"
+                << "{\"name\":\"Binaural HRTF\",\"status\":\""
+                << (va::binaural::sofa_reader_available() ? "ready" : "unavailable")
+                << "\",\"detail\":\""
+                << (va::binaural::sofa_reader_available()
+                        ? "SOFA HRTF convolution is applied after the room renderer when --hrtf-sofa is set"
+                        : "libmysofa was not present when this renderer was built")
+                << "\"},"
                 << "{\"name\":\"Hybrid solver\",\"status\":\"ready\","
                    "\"detail\":\"Operational with reference FDTD and the selected geometrical room model\"}]}\n";
             return 0;
@@ -346,7 +371,10 @@ int main(int argc, char** argv) {
         scene.speed_of_sound = number(args, "speed-of-sound", 343.0);
         scene.sources.push_back({vector3(args, "source", {1.2, 1.5, 1.4}),
                                  number(args, "source-gain", 1.0)});
-        scene.receivers.push_back({vector3(args, "receiver", {3.8, 2.5, 1.4})});
+        scene.receivers.push_back({vector3(args, "receiver", {3.8, 2.5, 1.4}),
+                                   number(args, "receiver-yaw", 0.0),
+                                   number(args, "receiver-pitch", 0.0),
+                                   number(args, "receiver-roll", 0.0)});
         add_shoebox_geometry(scene, number(args, "wall-absorption", 0.2));
 
         const auto mode = get(args, "mode", "geometrical");
@@ -370,9 +398,20 @@ int main(int argc, char** argv) {
         const va::RenderSettings rendering{output_rate, boolean(args, "reverb-tail", true)};
         const auto result = engine.render(scene, program, impulse, rendering);
         if (result.receiver_signals.empty()) throw std::runtime_error("solver produced no receiver audio");
-        write_wav(output_path, result.receiver_signals.front(), result.sample_rate,
-                  boolean(args, "normalize", true));
-        std::cout << "Rendered " << result.receiver_signals.front().size() << " samples with "
+        const auto sofa_path = get(args, "hrtf-sofa");
+        std::vector<va::AudioBuffer> output_channels;
+        if (sofa_path.empty()) {
+            output_channels.push_back(result.receiver_signals.front());
+        } else {
+            const auto stereo = va::binaural::spatialize_receiver(
+                result.receiver_signals.front(), result.sample_rate, sofa_path,
+                scene.sources.front().position, scene.receivers.front());
+            output_channels.push_back(std::move(stereo.left));
+            output_channels.push_back(std::move(stereo.right));
+        }
+        write_wav(output_path, output_channels, result.sample_rate, boolean(args, "normalize", true));
+        std::cout << "Rendered " << output_channels.front().size() << " "
+                  << (output_channels.size() == 2 ? "stereo" : "mono") << " samples with "
                   << engine.solver().name() << "\n";
     } catch (const std::exception& error) {
         std::cerr << "error: " << error.what() << '\n';

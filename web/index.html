@@ -65,15 +65,15 @@
               <button type="button" class="active" data-view="top" aria-pressed="true">Top</button>
               <button type="button" data-view="side" aria-pressed="false">Side</button>
             </div>
-            <div class="room-label room-w"><span id="widthLabel">5.0 m</span></div>
-            <div class="room-label room-d"><span id="verticalDimensionLabel">4.0 m</span></div>
+            <div class="room-label room-w"><span id="widthLabel">4.0 m</span></div>
+            <div class="room-label room-d"><span id="verticalDimensionLabel">5.0 m</span></div>
             <div class="pin source-pin" id="sourcePin" title="Drag source position" role="button" tabindex="0" aria-label="Source position; drag to move"><i></i><span>SOURCE</span></div>
             <div class="pin listener-pin" id="listenerPin" title="Drag listener position" role="button" tabindex="0" aria-label="Listener position; drag to move"><i></i><span>LISTENER</span></div>
           </div>
           <div class="room-fields">
             <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Room</legend><div class="field-row triple">
-              <label>Width<input name="room-x" type="number" min="1" max="30" step="any" value="5"></label>
-              <label>Depth<input name="room-y" type="number" min="1" max="30" step="any" value="4"></label>
+              <label>Width<input name="room-x" type="number" min="1" max="30" step="any" value="4"></label>
+              <label>Depth<input name="room-y" type="number" min="1" max="30" step="any" value="5"></label>
               <label>Height<input name="room-z" type="number" min="1" max="12" step="any" value="3"></label>
             </div><p id="roomModelHint" class="room-model-hint" hidden>Dimensions are locked to the loaded PFFDTD model. Drag source and listener to set the job positions.<br>When in Hybrid mode, geometrical acoustics are modelled based on these room dimensions (shoebox), but not the room geometry.</p></fieldset>
             <fieldset><legend style="margin-top: 12px; margin-bottom: 0px">Source position</legend><div class="field-row triple">
@@ -85,7 +85,15 @@
               <label>X<input name="receiver-x" type="number" min="0" step="any" value="3.8"></label>
               <label>Y<input name="receiver-y" type="number" min="0" step="any" value="2.5"></label>
               <label>Z<input name="receiver-z" type="number" min="0" step="any" value="1.4"></label>
-            </div></fieldset>
+            </div>
+            <div class="field-row triple" style="margin-top:12px;">
+              <label>Yaw<input name="receiver-yaw" type="number" step="any" value="0"></label>
+              <label>Pitch<input name="receiver-pitch" type="number" step="any" value="0"></label>
+              <label>Roll<input name="receiver-roll" type="number" step="any" value="0"></label>
+            </div>
+            <legend class="path-field">HRTF<span class="path-input"><input name="hrtf-sofa" type="text" placeholder="Optional SimpleFreeFieldHRIR .sofa"><button class="path-browse" type="button" data-kind="file" data-title="HRTF SOFA" data-types="sofa" aria-label="Browse for HRTF SOFA file"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.38l1.5 1.5H18.5A1.75 1.75 0 0 1 20.25 8.25v9A1.75 1.75 0 0 1 18.5 19H5.25A1.75 1.75 0 0 1 3.5 17.25Z"/></svg></button></span></legend>
+            <p class="room-model-hint">0, 0, 0 looks along +X with +Z up.<br>Leave the SOFA path empty for a mono render. Otherwise the output is convolved with the given file.</p>
+            </fieldset>
           </div>
         </div>
 
