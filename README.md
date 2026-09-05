@@ -6,7 +6,7 @@ A browser workbench for the [`va-synthesis`](https://github.com/hytheaway/va-syn
 
 Requirements: CMake 3.22+, a C++20 compiler, and Python 3.10+.
 
-After cloning this repo, you'll need to create and validate virtual Python environment to install dependencies for PFFDTD to work properly. Follow these steps from this repo root (example shows Conda with miniforge3):
+After cloning this repo, you'll need to create and validate virtual Python environment to install dependencies for PFFDTD to work properly. Follow these steps from this repo root (example shows Conda with [miniforge3](https://github.com/conda-forge/miniforge)):
 
 ```sh
 git submodule update --init --recursive
@@ -50,18 +50,18 @@ cd ..
 ./scripts/build.sh
 ```
 
-PFFDTD needs a Python interpreter that can import its numerical packages. Those packages are under `va-synthesis-gui/submodules/va-synthesis/submodules/pffdtd/python/`. Create that environment with any tool you prefer, then point this app at the resulting interpreter:
+PFFDTD needs a Python interpreter that can import its numerical packages. Those packages are under `va-synthesis-gui/submodules/va-synthesis/submodules/pffdtd/python/`. If you followed the steps above with [miniforge3](https://github.com/conda-forge/miniforge) (and installed for just your user instead of all users), you should have:
 
 ```sh
-export VA_PFFDTD_PYTHON=/absolute/path/to/python
+export VA_PFFDTD_PYTHON=~/miniforge3/envs/va-pffdtd/bin/python
 "$VA_PFFDTD_PYTHON" -c \
   'import h5py, numba, numpy, resampy, scipy; import sys; print(sys.executable)'
 ```
 
-For example, if you followed the PFFDTD setup from the [va-synthesis repo](https://github.com/hytheaway/va-synthesis), you should have:
+If you used any other tool for creating the virtual environment and installing the dependencies (e.g. virtualenv, anaconda, pipx, etc.), just point the app to that virtual environment's interpreter: 
 
 ```sh
-export VA_PFFDTD_PYTHON=~/miniforge3/envs/va-pffdtd/bin/python
+export VA_PFFDTD_PYTHON=/absolute/path/to/your/python
 "$VA_PFFDTD_PYTHON" -c \
   'import h5py, numba, numpy, resampy, scipy; import sys; print(sys.executable)'
 ```
