@@ -181,9 +181,9 @@ function makePinDraggable(selector, fieldPrefix) {
     const origin = roomOrigin();
     const extent = roomExtent();
     const verticalAxis = roomView === 'top' ? 'y' : 'z';
-    form.elements[`${fieldPrefix}-x`].value = clampToVolume('x', origin[0] + xRatio * extent.x).toFixed(2);
+    form.elements[`${fieldPrefix}-x`].value = clampToVolume('x', origin[0] + xRatio * extent.x).toFixed(1);
     const verticalRatio = roomView === 'side' ? 1 - yRatio : yRatio;
-    form.elements[`${fieldPrefix}-${verticalAxis}`].value = clampToVolume(verticalAxis, origin[axisIndex(verticalAxis)] + verticalRatio * extent[verticalAxis]).toFixed(2);
+    form.elements[`${fieldPrefix}-${verticalAxis}`].value = clampToVolume(verticalAxis, origin[axisIndex(verticalAxis)] + verticalRatio * extent[verticalAxis]).toFixed(1);
     updateRoom();
   }
 
@@ -213,9 +213,9 @@ function makePinDraggable(selector, fieldPrefix) {
     const verticalAxis = roomView === 'top' ? 'y' : 'z';
     const xField = form.elements[`${fieldPrefix}-x`];
     const verticalField = form.elements[`${fieldPrefix}-${verticalAxis}`];
-    xField.value = clampToVolume('x', Number(xField.value) + movement[0] * step).toFixed(2);
+    xField.value = clampToVolume('x', Number(xField.value) + movement[0] * step).toFixed(1);
     const verticalDirection = roomView === 'side' ? -movement[1] : movement[1];
-    verticalField.value = clampToVolume(verticalAxis, Number(verticalField.value) + verticalDirection * step).toFixed(2);
+    verticalField.value = clampToVolume(verticalAxis, Number(verticalField.value) + verticalDirection * step).toFixed(1);
     updateRoom();
     event.preventDefault();
   });
@@ -241,7 +241,7 @@ function updateCost() {
   const cells = Math.ceil(number('room-x') / cell) * Math.ceil(number('room-y') / cell) * Math.ceil(number('room-z') / cell);
   const steps = Math.ceil(number('ir-duration') * 343 / ((.999 / Math.sqrt(3)) * cell));
   const operations = cells * steps;
-  $('#costTitle').textContent = operations > 2e9 ? 'Very heavy reference simulation' : operations > 2e8 ? 'Moderate reference simulation' : 'Light reference simulation';
+  $('#costTitle').textContent = operations > 2e9 ? 'Very heavy simulation' : operations > 2e8 ? 'Moderate simulation' : 'Light simulation';
   $('#costText').textContent = `${cells.toLocaleString()} grid cells · ${steps.toLocaleString()} time steps. Lower bandwidth or response duration if rendering is slow.`;
 }
 
@@ -337,9 +337,9 @@ function applyLoadedModel(model, { resetPins = true } = {}) {
   pffdtdVolume = {min: model.bounds.min, max: model.bounds.max, layers: model.layers || []};
   loadedModelPath = $('input[name=pffdtd-model]').value.trim();
   const extent = roomExtent();
-  form.elements['room-x'].value = extent.x.toFixed(2);
-  form.elements['room-y'].value = extent.y.toFixed(2);
-  form.elements['room-z'].value = extent.z.toFixed(2);
+  form.elements['room-x'].value = extent.x.toFixed(1);
+  form.elements['room-y'].value = extent.y.toFixed(1);
+  form.elements['room-z'].value = extent.z.toFixed(1);
   form.elements['room-x'].max = Math.max(30, extent.x);
   form.elements['room-y'].max = Math.max(30, extent.y);
   form.elements['room-z'].max = Math.max(12, extent.z);
@@ -354,14 +354,14 @@ function applyLoadedModel(model, { resetPins = true } = {}) {
     const source = (model.sources && model.sources[0] && model.sources[0].xyz) || pffdtdVolume.min.map((v, i) => v + extent[['x','y','z'][i]] * 0.3);
     const receiver = (model.receivers && model.receivers[0] && model.receivers[0].xyz) || pffdtdVolume.min.map((v, i) => v + extent[['x','y','z'][i]] * 0.7);
     ['x','y','z'].forEach((axis, index) => {
-      form.elements[`source-${axis}`].value = clampToVolume(axis, source[index]).toFixed(2);
-      form.elements[`receiver-${axis}`].value = clampToVolume(axis, receiver[index]).toFixed(2);
+      form.elements[`source-${axis}`].value = clampToVolume(axis, source[index]).toFixed(1);
+      form.elements[`receiver-${axis}`].value = clampToVolume(axis, receiver[index]).toFixed(1);
     });
   } else {
     ['source','receiver'].forEach(prefix => {
       ['x','y','z'].forEach(axis => {
         const input = form.elements[`${prefix}-${axis}`];
-        input.value = clampToVolume(axis, number(`${prefix}-${axis}`)).toFixed(2);
+        input.value = clampToVolume(axis, number(`${prefix}-${axis}`)).toFixed(1);
       });
     });
   }
