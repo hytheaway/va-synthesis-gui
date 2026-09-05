@@ -91,7 +91,7 @@ Open <http://127.0.0.1:8765> if the browser does not open automatically. The cur
 - **Wave-based** uses a minimal FDTD solver by default. PFFDTD is selectable from the dropdown.
 - **Hybrid** combines low-frequency FDTD (either minimal or PFFDTD) and high-frequency geometrical room impulse responses at an adjustable crossover.
 
-## Run as a local server
+## Run on a server
 
 After following the initialize, build, and run instructions above, this can be easily run on a remote machine (server) at a specified IP address and port:
 
