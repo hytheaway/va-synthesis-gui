@@ -191,6 +191,14 @@ function updateCost() {
   const note = $('#costNote');
   note.hidden = mode === 'geometrical';
   if (note.hidden) return;
+  if ($('select[name=wave-backend]').value === 'pffdtd') {
+    const preparing = $('select[name=pffdtd-job-mode]').value === 'prepare';
+    $('#costTitle').textContent = preparing ? 'PFFDTD prepare + simulation' : 'PFFDTD uses the prepared job';
+    $('#costText').textContent = preparing
+      ? 'Voxelization uses the model, bandwidth, PPW, duration, and materials in the PFFDTD panel. The FDTD run then uses that job, not the shoebox diagram.'
+      : 'Runtime is set by the job directory (grid and duration), then convolution with your WAV. The shoebox size sliders do not change the PFFDTD mesh.';
+    return;
+  }
   const cell = 343 / (number('maximum-frequency') * number('points-per-wavelength'));
   const cells = Math.ceil(number('room-x') / cell) * Math.ceil(number('room-y') / cell) * Math.ceil(number('room-z') / cell);
   const steps = Math.ceil(number('ir-duration') * 343 / ((.999 / Math.sqrt(3)) * cell));
@@ -199,9 +207,90 @@ function updateCost() {
   $('#costText').textContent = `${cells.toLocaleString()} grid cells · ${steps.toLocaleString()} time steps. Lower bandwidth or response duration if rendering is slow.`;
 }
 
-$('select[name=wave-backend]').addEventListener('change', e => {
-  $$('.pffdtd-fields').forEach(el => el.hidden = e.target.value !== 'pffdtd');
+function updatePffdtdFields() {
+  const pffdtd = $('select[name=wave-backend]').value === 'pffdtd';
+  $$('.pffdtd-fields').forEach(el => { el.hidden = !pffdtd; });
+  const preparing = pffdtd && $('select[name=pffdtd-job-mode]').value === 'prepare';
+  $$('.pffdtd-prepare').forEach(el => { el.hidden = !preparing; });
+  $$('.pffdtd-existing').forEach(el => { el.hidden = !pffdtd || preparing; });
   updateCost();
+}
+
+$('select[name=wave-backend]').addEventListener('change', updatePffdtdFields);
+$('select[name=pffdtd-job-mode]').addEventListener('change', () => {
+  if ($('select[name=pffdtd-job-mode]').value === 'prepare' && $('select[name=pffdtd-execution]').value === 'prepared') {
+    $('select[name=pffdtd-execution]').value = 'python';
+  }
+  updatePffdtdFields();
+});
+
+const DEFAULT_PFFDTD_MATERIALS = [
+  ['AcousticPanel', 'ctk_acoustic_panel.h5'],
+  ['Altar', 'ctk_altar.h5'],
+  ['Carpet', 'ctk_carpet.h5'],
+  ['Ceiling', 'ctk_ceiling.h5'],
+  ['Glass', 'ctk_window.h5'],
+  ['PlushChair', 'ctk_chair.h5'],
+  ['Tile', 'ctk_tile.h5'],
+  ['Walls', 'ctk_walls.h5']
+];
+
+function collectPffdtdMaterials() {
+  return $$('#pffdtdMaterialRows .pffdtd-material-row').map(row => {
+    const name = $('[data-mat-name]', row).value.trim();
+    const file = $('[data-mat-file]', row).value.trim();
+    return name && file ? `${name}=${file}` : '';
+  }).filter(Boolean);
+}
+
+function addPffdtdMaterialRow(name = '', file = '') {
+  const row = document.createElement('div');
+  row.className = 'pffdtd-material-row';
+  const nameLabel = document.createElement('label');
+  nameLabel.textContent = 'Surface';
+  const nameInput = document.createElement('input');
+  nameInput.setAttribute('data-mat-name', '');
+  nameInput.type = 'text';
+  nameInput.value = name;
+  nameLabel.append(nameInput);
+  const fileLabel = document.createElement('label');
+  fileLabel.textContent = 'HDF5 file';
+  const fileInput = document.createElement('input');
+  fileInput.setAttribute('data-mat-file', '');
+  fileInput.type = 'text';
+  fileInput.value = file;
+  fileLabel.append(fileInput);
+  const remove = document.createElement('button');
+  remove.className = 'ghost small';
+  remove.type = 'button';
+  remove.textContent = 'Remove';
+  remove.addEventListener('click', () => row.remove());
+  row.append(nameLabel, fileLabel, remove);
+  $('#pffdtdMaterialRows').append(row);
+}
+
+DEFAULT_PFFDTD_MATERIALS.forEach(([name, file]) => addPffdtdMaterialRow(name, file));
+$('#addPffdtdMaterial').addEventListener('click', () => addPffdtdMaterialRow());
+$('#loadPffdtdSurfaces').addEventListener('click', async () => {
+  const path = $('input[name=pffdtd-model]').value.trim();
+  if (!path) { setStatus('Set the model JSON path first.'); return; }
+  try {
+    const response = await fetch(`/api/pffdtd/model?path=${encodeURIComponent(path)}`, {cache: 'no-store'});
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Could not read the model');
+    const previous = {};
+    collectPffdtdMaterials().forEach(item => {
+      const index = item.indexOf('=');
+      previous[item.slice(0, index)] = item.slice(index + 1);
+    });
+    $('#pffdtdMaterialRows').replaceChildren();
+    (payload.surfaces || []).forEach(name => addPffdtdMaterialRow(name, previous[name] || ''));
+    setStatus(payload.hasVaMaterials
+      ? 'Loaded surfaces from the model. Mappings are optional when va_materials is present.'
+      : `Loaded ${payload.surfaces.length} surfaces from the model.`);
+  } catch (error) {
+    setStatus(error.message);
+  }
 });
 
 const JOB_KEY = 'va-render-job';
@@ -326,6 +415,7 @@ form.addEventListener('submit', async event => {
     const data = Object.fromEntries(new FormData(form).entries());
     $$('input[type=checkbox]', form).forEach(input => data[input.name] = input.checked);
     data.fileName = audioFile.name; data.audioBase64 = await fileToBase64(audioFile);
+    data['pffdtd-materials'] = collectPffdtdMaterials();
     const response = await fetch('/api/render', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
     if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Render failed'); }
     const started = await response.json();
@@ -342,4 +432,4 @@ if (pendingJob) {
   followJob(pendingJob);
 }
 
-updateMode(); updateRoom();
+updateMode(); updateRoom(); updatePffdtdFields();

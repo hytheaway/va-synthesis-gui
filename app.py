@@ -16,14 +16,38 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 import webbrowser
 
 
 ROOT = Path(__file__).resolve().parent
 WEB_ROOT = ROOT / "web"
+VA_ROOT = ROOT / "submodules" / "va-synthesis"
+PREPARE_SCRIPT = VA_ROOT / "tools" / "prepare_pffdtd_job.py"
 MAX_UPLOAD = 128 * 1024 * 1024
 JOB_TTL_SECONDS = 60 * 60
+RENDER_SKIP_KEYS = {
+    "fileName",
+    "pffdtd-job-mode",
+    "pffdtd-repository",
+    "pffdtd-model",
+    "pffdtd-output",
+    "pffdtd-fmax",
+    "pffdtd-ppw",
+    "pffdtd-duration",
+    "pffdtd-source",
+    "pffdtd-processes",
+    "pffdtd-differentiate-source",
+    "pffdtd-fcc",
+    "pffdtd-materials-dir",
+    "pffdtd-materials",
+}
+
+
+def as_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "on", "yes"}
 
 
 def find_pffdtd_python() -> Path | None:
@@ -38,10 +62,83 @@ def find_pffdtd_python() -> Path | None:
     return None
 
 
+def inspect_pffdtd_model(raw_path: str) -> dict[str, object]:
+    path = Path(raw_path).expanduser()
+    if not path.is_absolute():
+        path = (VA_ROOT / path).resolve()
+    else:
+        path = path.resolve()
+    if not path.is_file():
+        raise ValueError(f"Model not found: {path}")
+    with path.open(encoding="utf-8") as handle:
+        model = json.load(handle)
+    mats = model.get("mats_hash")
+    if not isinstance(mats, dict):
+        raise ValueError("model JSON is missing mats_hash")
+    return {
+        "path": str(path),
+        "surfaces": sorted(name for name in mats if name != "_RIGID"),
+        "hasVaMaterials": bool(model.get("va_materials")),
+    }
+
+
+def required_text(request: dict[str, object], key: str) -> str:
+    value = str(request.get(key) or "").strip()
+    if not value:
+        raise ValueError(f"{key} is required to prepare a PFFDTD job")
+    return value
+
+
+def build_pffdtd_prepare_command(request: dict[str, object], python: str) -> list[str]:
+    if not PREPARE_SCRIPT.is_file():
+        raise ValueError(f"PFFDTD prepare script was not found at {PREPARE_SCRIPT}")
+    command = [
+        python,
+        str(PREPARE_SCRIPT),
+        "--repository", required_text(request, "pffdtd-repository"),
+        "--model", required_text(request, "pffdtd-model"),
+        "--output", required_text(request, "pffdtd-output"),
+        "--maximum-frequency", required_text(request, "pffdtd-fmax"),
+        "--points-per-wavelength", str(request.get("pffdtd-ppw") or "8"),
+        "--duration", required_text(request, "pffdtd-duration"),
+        "--source", str(request.get("pffdtd-source") or "1"),
+    ]
+    processes = str(request.get("pffdtd-processes") or "").strip()
+    if processes:
+        command.extend(("--processes", processes))
+    if as_bool(request.get("pffdtd-differentiate-source")):
+        command.append("--differentiate-source")
+    if as_bool(request.get("pffdtd-fcc")):
+        command.append("--fcc")
+    materials_dir = str(request.get("pffdtd-materials-dir") or "").strip()
+    if materials_dir:
+        command.extend(("--materials-dir", materials_dir))
+    materials = request.get("pffdtd-materials") or []
+    if isinstance(materials, str):
+        materials = [line.strip() for line in materials.splitlines() if line.strip()]
+    if not isinstance(materials, list):
+        raise ValueError("pffdtd-materials must be a list of NAME=FILE mappings")
+    for assignment in materials:
+        text = str(assignment).strip()
+        if not text:
+            continue
+        if "=" not in text or text.startswith("=") or text.endswith("="):
+            raise ValueError(f"material mapping must be NAME=FILE, got {text!r}")
+        command.extend(("--material", text))
+    return command
+
+
 class RenderJob:
-    def __init__(self, *, command: list[str], workdir: tempfile.TemporaryDirectory[str], stem: str, file_name: str):
+    def __init__(
+        self,
+        *,
+        steps: list[tuple[str, list[str], Path]],
+        workdir: tempfile.TemporaryDirectory[str],
+        stem: str,
+        file_name: str,
+    ):
         self.id = uuid.uuid4().hex
-        self.command = command
+        self.steps = steps
         self.workdir = workdir
         self.stem = stem
         self.file_name = file_name
@@ -122,30 +219,39 @@ class RenderJob:
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
         process: subprocess.Popen[bytes] | None = None
+        outputs: list[str] = []
         try:
-            process = subprocess.Popen(
-                self.command,
-                cwd=ROOT,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                bufsize=0,
-                env=env,
-            )
-            self._process = process
-            assert process.stdout is not None
-            output = self._consume_output(process.stdout)
-            returncode = process.wait()
-            if returncode != 0:
-                message = output.removeprefix("error: ").strip() or "The acoustic renderer failed"
-                self._finish(status="error", error=message, message=message)
-                return
+            for label, command, cwd in self.steps:
+                with self._lock:
+                    self.message = label
+                process = subprocess.Popen(
+                    command,
+                    cwd=cwd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    bufsize=0,
+                    env=env,
+                )
+                self._process = process
+                assert process.stdout is not None
+                output = self._consume_output(process.stdout)
+                returncode = process.wait()
+                process = None
+                self._process = None
+                if output:
+                    outputs.append(output)
+                if returncode != 0:
+                    message = output.removeprefix("error: ").strip() or f"{label} failed"
+                    self._finish(status="error", error=message, message=message)
+                    return
+            combined = "\n".join(outputs).strip()
             result_path = Path(self.workdir.name) / "rendered.wav"
             if not result_path.is_file():
                 raise RuntimeError("The renderer finished without writing output audio")
             payload = result_path.read_bytes()
             self._finish(
                 status="done",
-                message=(output.split("\n")[-1] if output else f"{len(payload) / (1024 * 1024):.2f} MB WAV"),
+                message=(combined.split("\n")[-1] if combined else f"{len(payload) / (1024 * 1024):.2f} MB WAV"),
                 result=payload,
             )
         except Exception as error:
@@ -213,6 +319,15 @@ class Handler(SimpleHTTPRequestHandler):
         parts = [part for part in urlparse(self.path).path.split("/") if part]
         if parts == ["api", "health"]:
             self.send_health()
+            return
+        if parts == ["api", "pffdtd", "model"]:
+            try:
+                path = (parse_qs(urlparse(self.path).query).get("path") or [""])[0]
+                if not path.strip():
+                    raise ValueError("path is required")
+                self.send_json(inspect_pffdtd_model(path))
+            except Exception as error:
+                self.send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return
         if len(parts) >= 3 and parts[0] == "api" and parts[1] == "jobs":
             job = self.server.jobs.get(parts[2])  # type: ignore[attr-defined]
@@ -294,19 +409,50 @@ class Handler(SimpleHTTPRequestHandler):
                 if not pffdtd_python:
                     raise ValueError("PFFDTD Python was not found; set VA_PFFDTD_PYTHON")
                 request["pffdtd-python"] = str(pffdtd_python)
+            prepare_pffdtd = (
+                request.get("wave-backend") == "pffdtd"
+                and str(request.get("pffdtd-job-mode") or "existing") == "prepare"
+            )
+            if prepare_pffdtd:
+                output_dir = required_text(request, "pffdtd-output")
+                request["pffdtd-data-directory"] = output_dir
+                if request.get("pffdtd-fmax"):
+                    request["maximum-frequency"] = request["pffdtd-fmax"]
+                if request.get("pffdtd-duration"):
+                    request["ir-duration"] = request["pffdtd-duration"]
+                if str(request.get("pffdtd-execution") or "prepared") == "prepared":
+                    raise ValueError(
+                        "Preparing a job does not produce sim_outs.h5. "
+                        "Choose Python CPU or a native CPU execution."
+                    )
             workdir = tempfile.TemporaryDirectory(prefix="va-synthesis-")
             try:
                 source = Path(workdir.name) / "input.wav"
                 result = Path(workdir.name) / "rendered.wav"
                 source.write_bytes(audio)
-                command = [str(self.server.renderer), "--input", str(source), "--output", str(result)]  # type: ignore[attr-defined]
+                render_command = [str(self.server.renderer), "--input", str(source), "--output", str(result)]  # type: ignore[attr-defined]
                 for key, value in request.items():
-                    if key == "fileName" or value is None:
+                    if key in RENDER_SKIP_KEYS or value is None or value == "":
                         continue
-                    command.extend(("--" + key, str(value).lower() if isinstance(value, bool) else str(value)))
+                    if isinstance(value, (list, dict)):
+                        continue
+                    render_command.extend(("--" + key, str(value).lower() if isinstance(value, bool) else str(value)))
+                steps: list[tuple[str, list[str], Path]] = []
+                if prepare_pffdtd:
+                    steps.append((
+                        "Preparing PFFDTD job…",
+                        build_pffdtd_prepare_command(request, str(request["pffdtd-python"])),
+                        VA_ROOT,
+                    ))
+                steps.append(("Computing pressure field…", render_command, ROOT))
                 raw_stem = Path(str(request.get("fileName", "audio.wav"))).stem
                 stem = "".join(character for character in raw_stem if character.isalnum() or character in "-_")[:80] or "audio"
-                job = RenderJob(command=command, workdir=workdir, stem=stem, file_name=str(request.get("fileName", "audio.wav")))
+                job = RenderJob(
+                    steps=steps,
+                    workdir=workdir,
+                    stem=stem,
+                    file_name=str(request.get("fileName", "audio.wav")),
+                )
             except Exception:
                 workdir.cleanup()
                 raise

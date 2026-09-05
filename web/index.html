@@ -148,12 +148,47 @@
             <div class="advanced-body">
               <label>FDTD method<select name="wave-backend"><option value="reference">Built-in basic FDTD</option><option value="pffdtd">PFFDTD</option></select></label>
               <div class="pffdtd-fields" hidden>
-                <label>Prepared job directory<input name="pffdtd-data-directory" type="text" placeholder="/path/to/job"></label>
+                <label>PFFDTD job<select name="pffdtd-job-mode">
+                  <option value="prepare" selected>Prepare from model, then simulate</option>
+                  <option value="existing">Use existing job directory</option>
+                </select></label>
                 <label>Python executable (Leave blank for current python env)<input name="pffdtd-python" type="text" placeholder="VA_PFFDTD_PYTHON or python3 on PATH"></label>
-                <label>Execution<select name="pffdtd-execution"><option value="prepared">Use existing sim_outs.h5</option><option value="python">Run Python CPU</option><option value="native-double">Native CPU double</option><option value="native-single">Native CPU single</option></select></label>
-                <label class="check"><input name="air-absorption" type="checkbox" style="width: auto;"> Apply modal air absorption</label>
+                <label>Execution<select name="pffdtd-execution">
+                  <option value="python" selected>Run Python CPU</option>
+                  <option value="prepared">Use existing sim_outs.h5</option>
+                  <option value="native-double">Native CPU double</option>
+                  <option value="native-single">Native CPU single</option>
+                </select></label>
+                <label class="check"><input name="air-absorption" type="checkbox" style="margin-top: 0.3em; width: auto;"> Apply modal air absorption</label>
+                <div class="pffdtd-existing" hidden>
+                  <label>Prepared job directory<input name="pffdtd-data-directory" type="text" placeholder="jobs/ctk-church"></label>
+                </div>
+                <div class="pffdtd-prepare">
+                  <label>Repository<input name="pffdtd-repository" type="text" value="submodules/pffdtd"></label>
+                  <label>Model JSON<input name="pffdtd-model" type="text" value="submodules/pffdtd/data/models/CTK_Church/model_export.json"></label>
+                  <label>Output directory<input name="pffdtd-output" type="text" value="jobs/ctk-church"></label>
+                  <label>Maximum frequency (Hz)<input name="pffdtd-fmax" type="number" min="1" step="1" value="1400"></label>
+                  <label>Points per wavelength<input name="pffdtd-ppw" type="number" min="2" step="0.1" value="10.5"></label>
+                  <label>Duration (s)<input name="pffdtd-duration" type="number" min="0.01" step="0.05" value="3"></label>
+                  <label>Source index<input name="pffdtd-source" type="number" min="1" step="1" value="1"></label>
+                  <label>Voxelizer processes (keep at 1 unless on Linux)<input name="pffdtd-processes" type="number" min="1" step="1" value="1"></label>
+                  <label class="check" style="margin-top: 1.2em"><input name="pffdtd-differentiate-source" type="checkbox" checked style="width:auto"> Differentiate source</label>
+                  <label class="check"><input name="pffdtd-fcc" type="checkbox" style="margin-top: 0.3em; width: auto;"> FCC grid</label>
+                  <div class="pffdtd-material-block">
+                    <div class="pffdtd-material-heading">
+                      <strong>Surface materials</strong>
+                    </div>
+                    <p class="note">Native PFFDTD models need NAME=FILE mappings. va-synthesis scene dumps can omit these and fit from va_materials. Paths are relative to the va-synthesis submodule unless they are absolute.</p>
+                    <div>
+                      <label style="float: left; width: 66%">Materials directory<input name="pffdtd-materials-dir" type="text" value="submodules/pffdtd/data/materials"></label>
+                      <button id="loadPffdtdSurfaces" class="ghost small" type="button" style="margin-top: 1.2em; margin-left: 1em; float:none; width:auto;">Read model surfaces</button>
+                      <button id="addPffdtdMaterial" class="ghost small" type="button" style="margin-top: 1.2em; float: right; width: auto;">Add mapping</button>
+                      </div>
+                    <div id="pffdtdMaterialRows"></div>
+                  </div>
+                </div>
               </div>
-              <p class="note">- Built-in FDTD is a minimal implementation.<br>- PFFDTD requires the PFFDTD submodule, an enabled virtual environment with all the PFFDTD dependencies, and a "job" prepared for these source/receiver counts. Refer to the docs for more information.</p>
+              <p class="note">- Built-in FDTD is a minimal implementation.<br>- PFFDTD requires the PFFDTD submodule and an enabled virutal environemnt with all the PFFDTD dependencies. If there is no pre-prepared job, PFFDTD can voxelize the model into the output directory, then run the selected execution on that job. Optionally, a job can be processed beforehand, or reused from a previous run (provided you understand what this means). Use an existing job directory if sim_consts.h5 is already prepared.</p>
             </div>
           </details>
           <div class="toggle-row"><div><strong>Keep reverberation tail</strong><small>Allow output to extend past the dry file</small></div><label class="switch"><input name="reverb-tail" type="checkbox" checked><i></i></label></div>
