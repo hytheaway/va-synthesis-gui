@@ -6,7 +6,7 @@ A browser workbench for the [`va-synthesis`](https://github.com/hytheaway/va-syn
 
 Requirements: CMake 3.22+, a C++20 compiler, and Python 3.10+.
 
-After cloning this repo, you'll need to create and validate virtual Python environment to install dependencies for PFFDTD to work properly. Follow these steps from this repo root (example shows Conda with [miniforge3](https://github.com/conda-forge/miniforge)):
+After cloning this repo, you'll need to create and validate a virtual Python environment to install dependencies for PFFDTD to work properly. Follow these steps from this repo root (example shows Conda with [miniforge3](https://github.com/conda-forge/miniforge)):
 
 ```sh
 git submodule update --init --recursive
@@ -81,7 +81,7 @@ Both cache values should be `ON`. If so, you can finally run (with your enabled 
 python3 app.py
 ```
 
-Open <http://127.0.0.1:8765> if the browser does not open automatically. Audio stays on the local machine. The current file host accepts PCM WAV (16/24/32-bit) and 32-bit float WAV, downmixes multichannel input to mono, and exports a normalized mono 24-bit WAV.
+Open <http://127.0.0.1:8765> if the browser does not open automatically. The current file host accepts PCM WAV (16/24/32-bit) and 32-bit float WAV, downmixes multichannel input to mono, and exports a normalized mono 24-bit WAV.
 
 ## Acoustic modes
 
@@ -89,8 +89,20 @@ Open <http://127.0.0.1:8765> if the browser does not open automatically. Audio s
 - **Wave-based** uses a minimal FDTD solver by default. PFFDTD is selectable from the dropdown.
 - **Hybrid** combines low-frequency FDTD (either minimal or PFFDTD) and high-frequency geometrical room impulse responses at an adjustable crossover.
 
+## Run as a local server
+
+After following the initialize, build, and run instructions above, this can be easily run on a remote machine (server) at a specified IP address and port:
+
+```sh
+python3 app.py --host 0.0.0.0 --port 8765 --no-browser
+```
+
+where "0.0.0.0" is whatever IP address you want to use and "8765" is the port number. These default to 127.0.0.1:8765. Make sure incoming TCP 8765 is allowed on the server's firewall.
+
+Please be aware that the prepared job directory and the Python path for PFFDTD are server paths (hence why you should follow the initialize, build, and run instructions first). Additionally, audio is uploaded from the client to the host and processed there.
+
 ## More info
 
 PFFDTD is selectable as an option for both the wave and hybrid modes. PFFDTD still requires a prepared simulation job matching the configured source and receiver count. macOS has some multiprocessing/pickling issues, so make sure you are following the "Prepare a job" section of [pffdtd.md](https://github.com/hytheaway/va-synthesis/blob/main/docs/pffdtd.md) found in [`va-synthesis`](https://github.com/hytheaway/va-synthesis/). On Linux, you can avoid these issues by using `fork` instead of `spawn` for pickling. See [`pffdtd.md`](https://github.com/hytheaway/va-synthesis/blob/main/docs/pffdtd.md) for more info on this.
 
-The Python host only serves static assets, accepts the local WAV upload, and starts `build/va_render`. The C++ renderer handles WAV conversion, constructs `va::Scene`, selects a `va::PropagationSolver`, calls `va::Engine::render`, and writes the output WAV.
+The Python host only serves static assets, accepts the WAV upload, and starts `build/va_render`. The C++ renderer handles WAV conversion, constructs `va::Scene`, selects a `va::PropagationSolver`, calls `va::Engine::render`, and writes the output WAV.
